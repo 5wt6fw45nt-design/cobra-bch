@@ -44,7 +44,7 @@ Built for the Concordium Trusted Agents Hackathon (`src/concordium.js`, `handleX
 
 - **x402 invoices.** `GET /x402/<invoice>` answers `402 Payment Required` with x402 payment requirements (`scheme: exact`, `network: concordium:testnet`, `asset: CCD`, `payTo` = the freelancer's Concordium account, `maxAmountRequired` = the invoice in microCCD, tagged with the invoice id). A buyer's agent sends the CCD transfer and repeats the request with `X-PAYMENT` (base64 JSON with `payload.txHash`). Cobra checks on chain that it is finalized, successful, to the right account and for the exact amount, never accepts a hash twice, settles the invoice, alerts the freelancer and returns `X-PAYMENT-RESPONSE`. `scripts/x402-agent.mjs` is a complete paying agent built on `@concordium/web-sdk`.
 - **People pay too.** The payment page shows the account and exact CCD amount; Cobra watches the account through the wallet-proxy and settles automatically, or instantly when the client pastes the transaction hash (the page uses the same x402 endpoint).
-- **Verified by Concordium.** Cobra is registered in the CIS-8004 Agent Registry. Its Agent Card (ERC-8004 + A2A, with the badge extension) is served byte for byte at `/.well-known/agent-card.json` so its SHA-256 matches the on-chain `metadata_hash`. Every payment page checks the badge live against the Agent Registry and shows **✓ Verified by Concordium**: the client knows an accountable, identity-verified human stands behind the invoice, which is exactly what invoice fraud lacks.
+- **Verified by Concordium (built, not active).** The code can serve an Agent Card (ERC-8004 + A2A, with the badge extension) at `/.well-known/agent-card.json` byte for byte, so its SHA-256 matches an on-chain `metadata_hash` in the CIS-8004 Agent Registry, and payment pages would then show **✓ Verified by Concordium**. Cobra is not registered there, so the badge is not shown today.
 
 ## Try it
 
@@ -85,7 +85,7 @@ Design details:
 ## Run it
 
 ```bash
-npm test                                  # 27 tests, no network
+npm test                                  # 28 tests, no network
 wrangler d1 create cobra-near             # put the id in wrangler.toml
 wrangler d1 migrations apply cobra-near --remote
 wrangler secret put BOT_TOKEN             # from @BotFather
