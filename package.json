@@ -17,6 +17,8 @@
   },
   "devDependencies": {
     "@bitauth/libauth": "^3.1.0-next.8",
+    "@cashlab/cauldron": "^1.0.3",
+    "@cashlab/common": "^1.0.5",
     "@concordium/web-sdk": "^12.0.2",
     "@electrum-cash/network": "^4.4.8",
     "@electrum-cash/web-socket": "^4.2.0",

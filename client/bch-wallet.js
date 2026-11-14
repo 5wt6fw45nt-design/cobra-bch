@@ -8,10 +8,11 @@ import { DappConnectionManager } from '@wizardconnect/dapp';
 import { binToHex, hexToBin, encodeTransaction, hash160, encodeCashAddress, cashAddressToLockingBytecode } from '@bitauth/libauth';
 
 const FULCRUM = ['wss://bch.imaginary.cash:50004', 'wss://fulcrum.greyh.at:50004', 'wss://bch.loping.net:50004'];
-const RECEIVE = 0, CHANGE = 1, DEPTH = 10, DUST = 546, TOKEN_DUST = 1000n;
+export const RECEIVE = 0;
+const CHANGE = 1, DEPTH = 10, DUST = 546, TOKEN_DUST = 1000n;
 
 /** One WebSocket session to the first Fulcrum server that answers. */
-async function chain() {
+export async function chain() {
   for (const url of FULCRUM) {
     try {
       const ws = new WebSocket(url);
@@ -30,7 +31,7 @@ async function chain() {
 let mgr = null, relay = null;
 
 /** Pairs with the wallet once per page. `onQr(text)` shows the pairing QR; resolves when the wallet is ready. */
-async function connect(onQr) {
+export async function connect(onQr) {
   if (mgr?.isWalletDiscovered()) return mgr;
   mgr?.destroy(); relay?.cleanup();
   mgr = new DappConnectionManager('Cobra', `${location.origin}/favicon.ico`, { session: false });
@@ -45,18 +46,18 @@ async function connect(onQr) {
   return mgr;
 }
 
-const addressAt = (child, index) => {
+export const addressAt = (child, index) => {
   const pub = mgr.getPubkey(child, BigInt(index));
   return pub ? encodeCashAddress({ prefix: 'bitcoincash', type: 'p2pkh', payload: hash160(pub) }).address : null;
 };
-const lock = (address) => {
+export const lock = (address) => {
   const r = cashAddressToLockingBytecode(address);
   if (typeof r === 'string') throw new Error(r);
   return r.bytecode;
 };
 
 /** The wallet's coins (BCH and tokens) on its first receive/change addresses, and a fresh change address. */
-async function scan(c) {
+export async function scan(c) {
   const addrs = [];
   for (const [child, path] of [[RECEIVE, 'receive'], [CHANGE, 'change']]) for (let i = 0; i < DEPTH; i++) { const a = addressAt(child, i); if (a) addrs.push({ path, index: i, address: a }); }
   if (!addrs.length) throw new Error('The wallet did not share its addresses.');
@@ -128,3 +129,6 @@ export async function pay({ to, sats, token, memo, prompt, onQr, onStep = () => 
   if (res.error) throw new Error(res.error);
   return res.signedTransaction;
 }
+
+/** The live WizardConnect session (for the bridge bundle). */
+export const manager = () => mgr;
