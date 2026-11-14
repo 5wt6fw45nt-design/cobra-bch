@@ -90,7 +90,7 @@ export async function balances(onQr) {
  * Sells `cents` PUSD on Cauldron and pays the resulting BCH (minus the network fee) to `to`, all in one
  * transaction: { to, cents, memo, prompt, onQr, onStep } → { signed, sats } (sats = BCH delivered to `to`).
  */
-export async function sellPusd({ to, cents, memo, prompt, onQr, onStep }) {
+export async function sellPusd({ to, cents, sats: exact, memo, prompt, onQr, onStep }) {
   const { coins, change } = await walletCoins(onQr, onStep);
   const want = BigInt(cents);
   const tokenCoins = coins.filter((x) => x.u.token_data?.category === PUSD_CATEGORY && !x.u.token_data.nft).sort((a, b) => (BigInt(b.u.token_data.amount) > BigInt(a.u.token_data.amount) ? 1 : -1));
@@ -101,7 +101,9 @@ export async function sellPusd({ to, cents, memo, prompt, onQr, onStep }) {
   const fuel = coins.filter((x) => !x.u.token_data).sort((a, b) => b.u.value - a.u.value)[0];
   if (fuel) picked.push(fuel); // a little BCH for the fee and the token change output
   const trade = lab.constructTradeBestRateForTargetSupply(PUSD_CATEGORY, NATIVE_BCH_TOKEN_ID, want, await pools(), 1n);
-  const sats = trade.summary.demand - 3000n; // leave room for the network fee; the rest returns as change
+  // `exact`: the amount a NEAR Intents quote expects; otherwise leave room for the network fee (the rest returns as change)
+  const sats = exact ? BigInt(exact) : trade.summary.demand - 3000n;
+  if (sats > trade.summary.demand - 1500n) throw new Error('The PUSD price moved. Get a new quote.');
   const tx = lab.createTradeTx(trade.entries, picked.map(toCoin), [
     { type: PayoutAmountRuleType.FIXED, locking_bytecode: lock(to), amount: sats },
     { type: PayoutAmountRuleType.CHANGE, locking_bytecode: lock(change.address) },

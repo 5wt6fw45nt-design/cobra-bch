@@ -9,6 +9,25 @@ export const PRE_BLAZE_COMMIT = 'ac3e0bb'; // Cobra before BLAZE (10 Nov 2026)
 export const BLAZE_START = 'blaze-start'; // 8903fee: BCH work prepared on 14 Nov before the kick-off
 export const PRE_BLAZE_DEMO = 'https://x.com/Cadawallet/status/2117644899109761343';
 
+/** The banner BLAZE asks for at the top of every demo page (self-contained styles, so any page can include it). */
+export function blazeBanner({ presentation, donate }) {
+  return `<style>
+  .blz { background:#0f1b2d; color:#e9eef7; padding:10px 16px; font:14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  @media (prefers-color-scheme: dark) { .blz { background:#0ac18e; color:#04261b; } }
+  .blz .in { max-width:880px; margin:0 auto; display:flex; flex-wrap:wrap; gap:6px 18px; align-items:center; }
+  .blz a { color:inherit; font-weight:700; } .blz code { font:12px/1.3 ui-monospace, Menlo, monospace; overflow-wrap:anywhere; }
+</style>
+<div class="blz"><div class="in">
+  <span>🔥 BCH BLAZE 2026</span>
+  ${presentation ? `<a href="${esc(presentation)}" target="_blank" rel="noopener">Presentation</a>` : ''}
+  <a href="${REPO}" target="_blank" rel="noopener">New repo (cobra-bch)</a>
+  <a href="${OLD_REPO}/tree/${PRE_BLAZE_COMMIT}" target="_blank" rel="noopener">Old repo (before BLAZE)</a>
+  <a href="${PRE_BLAZE_DEMO}" target="_blank" rel="noopener">Demo before BLAZE</a>
+  <a href="${REPO}/compare/${BLAZE_START}...main" target="_blank" rel="noopener">What's new during BLAZE</a>
+  ${donate ? `<span>EMBER2026 / donations: <code>${esc(donate)}</code></span>` : ''}
+</div></div>`;
+}
+
 export function landingPage({ presentation, donate, bot = 'Cobrainvoicebot' }) {
   return `<!doctype html>
 <html lang="en">
@@ -42,15 +61,7 @@ export function landingPage({ presentation, donate, bot = 'Cobrainvoicebot' }) {
 </style>
 </head>
 <body>
-<div class="banner"><div class="in">
-  <span>🔥 BCH BLAZE 2026</span>
-  ${presentation ? `<a href="${esc(presentation)}" target="_blank" rel="noopener">Presentation</a>` : ''}
-  <a href="${REPO}" target="_blank" rel="noopener">New repo (cobra-bch)</a>
-  <a href="${OLD_REPO}/tree/${PRE_BLAZE_COMMIT}" target="_blank" rel="noopener">Old repo (before BLAZE)</a>
-  <a href="${PRE_BLAZE_DEMO}" target="_blank" rel="noopener">Demo before BLAZE</a>
-  <a href="${REPO}/compare/${BLAZE_START}...main" target="_blank" rel="noopener">What's new during BLAZE</a>
-  ${donate ? `<span>EMBER2026 / donations: <code>${esc(donate)}</code></span>` : ''}
-</div></div>
+${blazeBanner({ presentation, donate })}
 <main>
   <section>
     <div class="muted">🧾 Cobra · Telegram assistant for freelancers</div>
@@ -63,6 +74,12 @@ export function landingPage({ presentation, donate, bot = 'Cobrainvoicebot' }) {
     <p class="muted">Opens a real Cobra invoice. Tap <b>Pay with my wallet (WizardConnect)</b>, scan the QR with Paytaca, Cashonize or Zapit and approve. Or scan the BIP21 QR with any BCH wallet. The page turns green as soon as the payment is seen (0-conf).</p>
     <a class="cta" href="/demo">Pay a demo invoice</a>
     <a class="ghost" href="https://t.me/${esc(bot)}" target="_blank" rel="noopener">Make your own invoice on Telegram</a>
+  </section>
+
+  <section class="card">
+    <h2>New: stablecoin bridge</h2>
+    <p class="muted">Turn PUSD into USDC or USDT on 8 chains (Base, Arbitrum, Ethereum, Solana, Polygon, BNB Chain, NEAR, Tron) with one signature in your BCH wallet, or bring USDC in and swap it to PUSD. Cauldron for PUSD ⇄ BCH, NEAR Intents across chains, WizardConnect for signing.</p>
+    <a class="cta" href="/bridge">Open the bridge</a>
   </section>
 
   <section class="steps">

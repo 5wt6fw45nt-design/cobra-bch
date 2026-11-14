@@ -158,6 +158,15 @@ export function createIntents({ base, apiKey, rpc }, fetchFn = (...a) => fetch(.
       return { ...out.quote, signature: out.signature, correlationId: out.correlationId };
     },
 
+    /** Any-to-any quote with a deposit address (the stablecoin bridge): EXACT_INPUT by default, 1 % slippage. */
+    async swap({ originAsset, destinationAsset, amount, recipient, refundTo, deadline, swapType = 'EXACT_INPUT', dry = false }) {
+      const out = await request('POST', '/v0/quote', {
+        dry, swapType, slippageTolerance: 100, originAsset, depositType: 'ORIGIN_CHAIN', destinationAsset, amount,
+        recipient, recipientType: 'DESTINATION_CHAIN', refundTo, refundType: 'ORIGIN_CHAIN', deadline: new Date(deadline).toISOString(), referral: 'cobra',
+      });
+      return { ...out.quote, signature: out.signature, correlationId: out.correlationId };
+    },
+
     status: (depositAddress, memo) => request('GET', `/v0/status?depositAddress=${encodeURIComponent(depositAddress)}${memo ? `&depositMemo=${encodeURIComponent(memo)}` : ''}`),
 
     /** Optional: tells 1Click about the deposit transaction so it is picked up sooner. */

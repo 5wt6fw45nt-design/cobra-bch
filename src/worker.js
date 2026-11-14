@@ -14,11 +14,42 @@ import { budgetedAi } from './ai.js';
 import { MINI_APP } from './miniapp.js';
 import { payPage, publicInvoice } from './paypage.js';
 import { BCH_WALLET_JS } from './bchwallet.gen.js';
-import { landingPage } from './landing.js';
+import { landingPage, blazeBanner } from './landing.js';
+import { createBridge, BridgeError } from './bridge.js';
+import { bridgePage } from './bridgepage.js';
+import { BRIDGE_JS } from './bridge.gen.js';
 import { newPayToken } from './payments.js';
 import { isCashAddr } from './bch.js';
 
 const DEMO_USER = 1; // a made-up Telegram id (real ids are larger) that owns the public demo invoices
+
+/** /bridge (page), /bridge.js (browser code), /bridge/quote (POST), /bridge/status?d=<deposit address> */
+async function handleBridge(req, env, url, deps) {
+  const { intents } = build(env, deps);
+  const bridge = createBridge(intents);
+  if (url.pathname === '/bridge.js') return new Response(BRIDGE_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+  if (url.pathname === '/bridge' && req.method === 'GET') {
+    const stables = await bridge.stables().catch(() => []);
+    return html(bridgePage({ stables, banner: blazeBanner({ presentation: env.PRESENTATION_URL, donate: env.DEMO_BCH_ADDRESS }) }));
+  }
+  if (url.pathname === '/bridge/quote' && req.method === 'POST') {
+    const body = await req.json().catch(() => ({}));
+    try {
+      return Response.json(await bridge.quote({ direction: body.direction === 'in' ? 'in' : 'out', stable: String(body.stable || ''), amount: String(body.amount || ''), to: String(body.to || ''), refund: String(body.refund || '') }));
+    } catch (e) {
+      if (e instanceof BridgeError) return Response.json({ error: e.message, detail: { to: 'Check the destination address for that chain.', refund: 'Check your address on that chain.', amount: 'Check the amount.' }[e.message] || e.message }, { status: 400 });
+      if (e instanceof IntentsError && e.status < 500) return Response.json({ error: 'intents', detail: e.detail }, { status: 400 });
+      console.error('[bridge]', e.message);
+      return Response.json({ error: 'unavailable', detail: 'NEAR Intents is not answering right now. Try again in a minute.' }, { status: 503 });
+    }
+  }
+  if (url.pathname === '/bridge/status' && req.method === 'GET') {
+    const d = url.searchParams.get('d') || '';
+    if (!d || d.length > 120) return Response.json({ error: 'deposit' }, { status: 400 });
+    try { return Response.json(await bridge.status(d)); } catch (e) { return Response.json({ status: 'UNKNOWN', error: e.message }, { status: 200 }); }
+  }
+  return html('Not found', 404);
+}
 
 /**
  * /demo: a fresh $0.10 invoice anyone can pay in BCH or PUSD on mainnet, to DEMO_BCH_ADDRESS. A visitor gets the same
@@ -183,6 +214,7 @@ export default {
 
     if (url.pathname.startsWith('/pay/')) return handlePay(req, env, url, deps);
     if (url.pathname === '/demo') return handleDemo(env, url, { ...deps, ip: req.headers.get('cf-connecting-ip') || '' });
+    if (url.pathname.startsWith('/bridge')) return handleBridge(req, env, url, deps);
     if (url.pathname === '/' || url.pathname === '') return html(landingPage({ presentation: env.PRESENTATION_URL, donate: env.DEMO_BCH_ADDRESS }));
     // WizardConnect + transaction builder for "Pay with my wallet" on Bitcoin Cash invoices (client/bch-wallet.js)
     if (url.pathname === '/bch-wallet.js') return new Response(BCH_WALLET_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=3600' } });

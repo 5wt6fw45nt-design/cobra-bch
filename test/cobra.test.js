@@ -955,3 +955,70 @@ test('home page has the BLAZE banner; /demo opens one $0.10 BCH invoice per visi
   assert.equal(inv.payout_address, ZADDR);
   assert.notEqual((await go('?new=1')).headers.get('location'), r1.headers.get('location'));
 });
+
+// --- Stablecoin bridge (BCH BLAZE bounty): BCH ⇄ stablecoins on NEAR Intents, PUSD ⇄ BCH on Cauldron in the browser ---
+
+import { createBridge, isChainAddress, BCH_1CLICK } from '../src/bridge.js';
+
+const EVM = '0x5A0b54D5dc17e0AadC383d2db43B0a0D3E029c4c';
+
+function bridgeIntents() {
+  const calls = [];
+  return {
+    calls,
+    tokens: async () => [
+      { assetId: 'nep141:base-usdc', symbol: 'USDC', blockchain: 'base', decimals: 6 },
+      { assetId: 'nep141:tron-usdt', symbol: 'USDT', blockchain: 'tron', decimals: 6 },
+      { assetId: BCH_1CLICK, symbol: 'BCH', blockchain: 'bch', decimals: 8 },
+    ],
+    async swap(p) { calls.push(p); return { depositAddress: 'DEPO', amountInFormatted: '0.0047', amountOutFormatted: '1.00', amountOut: '1000000', timeEstimate: 109, deadline: '2026-11-14T16:00:00Z' }; },
+    status: async () => ({ status: 'SUCCESS', swapDetails: { amountOutFormatted: '1.00', destinationChainTxHashes: [{ explorerUrl: 'https://basescan/tx/1' }] } }),
+  };
+}
+
+test('bridge: address checks per chain', () => {
+  assert.ok(isChainAddress('base', EVM));
+  assert.ok(!isChainAddress('base', 'marta.near'));
+  assert.ok(isChainAddress('near', 'marta.near'));
+  assert.ok(isChainAddress('tron', 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf'));
+  assert.ok(isChainAddress('bch', ZADDR));
+  assert.ok(!isChainAddress('sol', '0x00'));
+});
+
+test('bridge: PUSD → USDC sends exact BCH sats to 1Click with a BCH refund; USDC → PUSD delivers BCH to the wallet', async () => {
+  const it = bridgeIntents();
+  const b = createBridge(it);
+  assert.deepEqual((await b.stables()).map((s) => s.id), ['USDC-base', 'USDT-tron']);
+
+  const out = await b.quote({ direction: 'out', stable: 'USDC-base', amount: '464585', to: EVM, refund: ZADDR });
+  assert.equal(out.depositAddress, 'DEPO');
+  assert.deepEqual({ ...it.calls[0], deadline: 0 }, { dry: false, originAsset: BCH_1CLICK, destinationAsset: 'nep141:base-usdc', amount: '464585', recipient: EVM, refundTo: QADDR, deadline: 0 }, 'refund to the plain BCH address');
+
+  await b.quote({ direction: 'in', stable: 'USDT-tron', amount: '1000000', to: ZADDR, refund: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf' });
+  assert.equal(it.calls[1].originAsset, 'nep141:tron-usdt');
+  assert.equal(it.calls[1].destinationAsset, BCH_1CLICK);
+  assert.equal(it.calls[1].recipient, QADDR, 'BCH lands on the wallet (plain form)');
+
+  await assert.rejects(b.quote({ direction: 'out', stable: 'USDC-base', amount: '1', to: 'nope', refund: ZADDR }), /to/);
+  await assert.rejects(b.quote({ direction: 'in', stable: 'USDC-base', amount: '1', to: ZADDR, refund: 'nope' }), /refund/);
+  await assert.rejects(b.quote({ direction: 'out', stable: 'USDC-base', amount: '-5', to: EVM, refund: ZADDR }), /amount/);
+  await assert.rejects(b.quote({ direction: 'out', stable: 'DOGE-x', amount: '5', to: EVM, refund: ZADDR }), /unknown/);
+  assert.deepEqual(await b.status('DEPO'), { status: 'SUCCESS', amountOut: '1.00', txOut: 'https://basescan/tx/1', txIn: null });
+});
+
+test('bridge page and endpoints are served, with the BLAZE banner', async () => {
+  const s = setup();
+  const env = { DB: s.d1, PUBLIC_URL: 'https://cobra.test', BOT_TOKEN: 'x', DEMO_BCH_ADDRESS: ZADDR };
+  const deps = { intents: bridgeIntents(), api: s.api, bch: { tip: async () => 1 } };
+  const page = await (await worker.fetch(new Request('https://cobra.test/bridge'), env, {}, deps)).text();
+  assert.match(page, /PUSD ⇄ USDC/);
+  assert.match(page, /BCH BLAZE 2026/);
+  assert.match(page, /USDT · Tron/);
+  const js = await worker.fetch(new Request('https://cobra.test/bridge.js'), env, {}, deps);
+  assert.ok((await js.text()).length > 500_000);
+  const bad = await worker.fetch(new Request('https://cobra.test/bridge/quote', { method: 'POST', body: JSON.stringify({ direction: 'out', stable: 'USDC-base', amount: '100', to: 'x', refund: ZADDR }) }), env, {}, deps);
+  assert.equal(bad.status, 400);
+  assert.match((await bad.json()).detail, /destination address/);
+  const ok = await worker.fetch(new Request('https://cobra.test/bridge/status?d=DEPO'), env, {}, deps);
+  assert.equal((await ok.json()).status, 'SUCCESS');
+});
