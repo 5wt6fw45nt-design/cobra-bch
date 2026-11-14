@@ -916,6 +916,7 @@ test('BCH invoices: BCH and PUSD direct (WizardConnect data), anything else via 
   assert.match(s.last().text, /Marta García te ha pagado 350,00\s€/);
   assert.match(s.last().text, /392.00 PUSD · Bitcoin Cash/);
   assert.equal(s.buttons()[0].url, 'https://blockchair.com/bitcoin-cash/transaction/f00d');
+  assert.equal(s.buttons()[1].url, 'https://cobra.test/bridge', 'paid in BCH/PUSD: a button to the bridge');
   assert.equal((await s.db.invoiceById(1)).status, 'PAID');
 });
 

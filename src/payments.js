@@ -250,7 +250,10 @@ export function createPayments({ db, intents, mezo, concordium, lightning, bch, 
     if (status === 'SUCCESS') {
       const tx = sd.destinationChainTxHashes?.[0]?.explorerUrl || null;
       const paidWith = `${sentAmount} ${dep.symbol} · ${chain}`;
-      const buttons = tx ? kb([[{ text: t.btnTx, url: tx }]]) : {};
+      const rows = tx ? [[{ text: t.btnTx, url: tx }]] : [];
+      // Paid in BCH or PUSD: one tap to move it to dollars (PUSD) or to USDC/USDT on another chain
+      if (inv.payout_chain === 'bch' && cfg.publicUrl) rows.push([{ text: u?.lang === 'es' ? '💱 Pasar a PUSD o USDC' : '💱 Move to PUSD or USDC', url: `${cfg.publicUrl}/bridge` }]);
+      const buttons = rows.length ? kb(rows) : {};
       if (await db.markPaid(inv.id, paidWith, tx, now)) await notify(inv.user_id, t.paid({ ...inv, paid_with: paidWith }, u?.lang), buttons);
       else await notify(inv.user_id, t.paidAgain({ ...inv, paid_with: paidWith }, u?.lang), buttons); // a second payment still reached their account
     } else if (status === 'REFUNDED' || status === 'FAILED') {
