@@ -3,8 +3,10 @@
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-export const REPO = 'https://github.com/5wt6fw45nt-design/cobra-near';
-export const PRE_BLAZE_COMMIT = 'ac3e0bb'; // last commit before the hackathon (13 Nov 2026)
+export const REPO = 'https://github.com/5wt6fw45nt-design/cobra-bch'; // fork made at BLAZE kick-off
+export const OLD_REPO = 'https://github.com/5wt6fw45nt-design/cobra-near'; // Cobra before BLAZE
+export const PRE_BLAZE_COMMIT = 'ac3e0bb'; // Cobra before BLAZE (10 Nov 2026)
+export const BLAZE_START = 'blaze-start'; // 8903fee: BCH work prepared on 14 Nov before the kick-off
 export const PRE_BLAZE_DEMO = 'https://x.com/Cadawallet/status/2117644899109761343';
 
 export function landingPage({ presentation, donate, bot = 'Cobrainvoicebot' }) {
@@ -43,9 +45,10 @@ export function landingPage({ presentation, donate, bot = 'Cobrainvoicebot' }) {
 <div class="banner"><div class="in">
   <span>🔥 BCH BLAZE 2026</span>
   ${presentation ? `<a href="${esc(presentation)}" target="_blank" rel="noopener">Presentation</a>` : ''}
-  <a href="${REPO}" target="_blank" rel="noopener">GitHub repo</a>
-  <a href="${REPO}/tree/${PRE_BLAZE_COMMIT}" target="_blank" rel="noopener">Before BLAZE</a>
+  <a href="${REPO}" target="_blank" rel="noopener">New repo (cobra-bch)</a>
+  <a href="${OLD_REPO}/tree/${PRE_BLAZE_COMMIT}" target="_blank" rel="noopener">Old repo (before BLAZE)</a>
   <a href="${PRE_BLAZE_DEMO}" target="_blank" rel="noopener">Demo before BLAZE</a>
+  <a href="${REPO}/compare/${BLAZE_START}...main" target="_blank" rel="noopener">What's new during BLAZE</a>
   ${donate ? `<span>EMBER2026 / donations: <code>${esc(donate)}</code></span>` : ''}
 </div></div>
 <main>
@@ -70,14 +73,12 @@ export function landingPage({ presentation, donate, bot = 'Cobrainvoicebot' }) {
   </section>
 
   <section class="card">
-    <h2>New during BCH BLAZE</h2>
+    <h2>What is old, what is new</h2>
     <ul>
-      <li>Direct <b>BCH</b> payments to the freelancer's own address; the last digits of the amount identify the invoice, so even a plain QR payment is matched.</li>
-      <li>Direct <b>PUSD</b> payments: invoices settle in a BCH-native dollar stablecoin (fungible CashToken), exact to the cent.</li>
-      <li><b>WizardConnect</b> “Pay with my wallet”: xpub address discovery, coin and token selection, OP_RETURN invoice memo, signed and broadcast by the wallet.</li>
-      <li>Payment watching over <b>Fulcrum</b> (history + mempool, token outputs), Telegram alerts, token-aware <code>z…</code> addresses.</li>
+      <li><b>Before BLAZE</b> (<a href="${OLD_REPO}/tree/${PRE_BLAZE_COMMIT}">code</a>, <a href="${PRE_BLAZE_DEMO}">demo</a>): voice notes become invoices on Telegram; payouts through NEAR Intents, Mezo, Concordium and Lightning.</li>
+      <li><b>Prepared on 14 Nov, before the kick-off</b> (<a href="${REPO}/tree/${BLAZE_START}">blaze-start</a>, disclosed in <a href="${REPO}/tree/main/Preparation">Preparation</a>): first version of direct BCH and PUSD payments over WizardConnect, Fulcrum watching, this page and the demo invoice.</li>
+      <li><b>Built during BLAZE</b>: every commit after the kick-off, listed in <a href="${REPO}/compare/${BLAZE_START}...main">this comparison</a>.</li>
     </ul>
-    <p class="muted">Before BLAZE, Cobra already turned voice notes into invoices and settled them through NEAR Intents, Mezo, Concordium and Lightning (<a href="${REPO}/tree/${PRE_BLAZE_COMMIT}">code</a>, <a href="${PRE_BLAZE_DEMO}">demo</a>). Everything Bitcoin Cash on this page is new.</p>
   </section>
 
   <p class="muted">Non-custodial: Cobra never holds keys or funds. Open source, MIT.</p>

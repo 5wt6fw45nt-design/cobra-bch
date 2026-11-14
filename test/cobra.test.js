@@ -944,6 +944,7 @@ test('home page has the BLAZE banner; /demo opens one $0.10 BCH invoice per visi
   const home = await (await worker.fetch(new Request('https://cobra.test/'), env, {}, deps)).text();
   assert.match(home, /BCH BLAZE 2026/);
   assert.ok(home.includes(ZADDR) && home.includes('docs.google.com/presentation') && home.includes('/tree/ac3e0bb'));
+  assert.ok(home.includes('cobra-bch') && home.includes('blaze-start...main') && home.includes('Prepared on 14 Nov'), 'old, prepared and new are told apart');
   const go = (q = '') => worker.fetch(new Request(`https://cobra.test/demo${q}`, { headers: { 'cf-connecting-ip': '1.2.3.4' } }), env, {}, deps);
   const r1 = await go();
   assert.equal(r1.status, 302);

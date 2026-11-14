@@ -36,13 +36,14 @@ MUSD (Mezo's Bitcoin-backed stablecoin) is not routed by 1Click, so Mezo invoice
 
 ### Bitcoin Cash: BCH and PUSD over WizardConnect (BCH BLAZE 2026)
 
-Built during BCH BLAZE (14–22 Nov 2026). Try it: open the Worker's home page and press **Pay a demo invoice** ($0.10 on mainnet).
+> **BCH BLAZE disclosure.** This repository (`cobra-bch`) is a fork of [cobra-near](https://github.com/5wt6fw45nt-design/cobra-near) made at the BLAZE kick-off (14 Nov 2026, 14:00 UTC). Cobra before BLAZE: tag [`pre-blaze`](https://github.com/5wt6fw45nt-design/cobra-bch/tree/pre-blaze) and its [demo](https://x.com/Cadawallet/status/2117644899109761343). The first BCH version below was prepared that morning, before the kick-off: tag [`blaze-start`](https://github.com/5wt6fw45nt-design/cobra-bch/tree/blaze-start), explained in [`Preparation/`](Preparation/). Everything after `blaze-start` was built during the hackathon: [compare](https://github.com/5wt6fw45nt-design/cobra-bch/compare/blaze-start...main).
+
+Try it: open the Worker's home page and press **Pay a demo invoice** ($0.10 on mainnet).
 
 - **Direct BCH.** The freelancer gives a BCH address (the token-aware `z…` form works too). The invoice is priced in BCH at the live rate, rounded up to 1000 sats, and the invoice id is added in the last three digits, so a payment from any wallet scanning the BIP21 QR is recognised by its amount alone.
 - **Direct PUSD.** Invoices can be paid in ParyonUSD, the BCH-native dollar stablecoin (fungible CashToken `2469acc5…2544`, 2 decimals), exact to the cent, to the freelancer's token-aware address.
 - **Pay with my wallet (WizardConnect).** `client/bch-wallet.js` (bundled by `npm run build:client`, served at `/bch-wallet.js`) pairs with Paytaca, Cashonize or Zapit over the WizardConnect relay, discovers the wallet's addresses from its xpubs, selects BCH and PUSD coins, and builds the payment plus an `OP_RETURN "cobra" "<invoice id>"` memo. The wallet only signs and broadcasts; Cobra never sees a key or holds funds.
 - **Watching.** `src/bch.js` talks to public Fulcrum servers over WebSocket (with fallback): address history and mempool from the block the invoice was opened, verbose transactions, `tokenData` for PUSD. A payment seen in the mempool settles the invoice (0-conf, as BCH merchants do) and the freelancer gets a Telegram alert with the transaction. Any other token still reaches the freelancer as BCH through NEAR Intents.
-- **Before vs after.** Everything above is new; the voice/AI layer, the NEAR/Mezo/Concordium/Lightning payouts and the payment page existed before ([pre-BLAZE code](https://github.com/5wt6fw45nt-design/cobra-near/tree/ac3e0bb), [pre-BLAZE demo](https://x.com/Cadawallet/status/2117644899109761343)).
 
 ### Cashu ecash: pay an invoice by pasting a token
 
