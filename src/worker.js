@@ -8,10 +8,46 @@ import { createPayments, PayError, LN_ASSET } from './payments.js';
 import { createMezo, MUSD_ASSET } from './mezo.js';
 import { createConcordium, CCD_ASSET, parsePaymentHeader } from './concordium.js';
 import { createLightning } from './lightning.js';
+import { createBch, BCH_ASSET, PUSD_ASSET } from './bch.js';
 import { createBot } from './bot.js';
 import { budgetedAi } from './ai.js';
 import { MINI_APP } from './miniapp.js';
 import { payPage, publicInvoice } from './paypage.js';
+import { BCH_WALLET_JS } from './bchwallet.gen.js';
+import { landingPage } from './landing.js';
+import { newPayToken } from './payments.js';
+import { isCashAddr } from './bch.js';
+
+const DEMO_USER = 1; // a made-up Telegram id (real ids are larger) that owns the public demo invoices
+
+/**
+ * /demo: a fresh $0.10 invoice anyone can pay in BCH or PUSD on mainnet, to DEMO_BCH_ADDRESS. A visitor gets the same
+ * open invoice for 20 minutes, so reloading does not pile them up.
+ */
+async function handleDemo(env, url, deps) {
+  const { cfg, db } = build(env, deps);
+  const address = env.DEMO_BCH_ADDRESS;
+  if (!isCashAddr(address)) return new Response('Demo not configured', { status: 503 });
+  const now = Date.now();
+  await db.upsertUser({ id: DEMO_USER, first_name: 'Cobra demo', language_code: 'en' }, now);
+  await db.setBusiness(DEMO_USER, 'Lucía Studio (Cobra demo)');
+  await db.setPayout(DEMO_USER, 'bch', address);
+  const ip = (url.searchParams.get('new') ? `${now}` : '') + (deps.ip || '');
+  const key = `demo:${ip}`;
+  const open = Number(await db.kvGet(key)) || 0;
+  let inv = open ? await db.invoiceById(open) : null;
+  if (!inv || inv.status !== 'SENT' || now - inv.created_at > 20 * 60_000) {
+    const token = newPayToken();
+    const id = await db.addInvoice({
+      user_id: DEMO_USER, pay_token: token, number: `D${String((await db.countInvoices(DEMO_USER)) + 1).padStart(4, '0')}`,
+      client_name: 'BCH BLAZE judge', description: 'Logo sketch (demo invoice)', amount_cents: 10, currency: 'USD',
+      payout_chain: 'bch', payout_address: address, due_date: null, pay_url: `${cfg.publicUrl}/pay/${token}?lang=en`, created_at: now,
+    });
+    await db.kvSet(key, id);
+    inv = await db.invoiceById(id);
+  }
+  return Response.redirect(`${url.origin}/pay/${inv.pay_token}?lang=en`, 302);
+}
 import { verifyInitData, toRow, toCsv } from './webapp.js';
 
 export function build(env, deps = {}) {
@@ -22,7 +58,8 @@ export function build(env, deps = {}) {
   const mezo = deps.mezo || createMezo(cfg.mezoNetwork);
   const concordium = deps.concordium || createConcordium(cfg.concordiumNetwork);
   const lightning = deps.lightning || createLightning();
-  const payments = createPayments({ db, intents, mezo, concordium, lightning, api, cfg, clock: deps.clock, cashuPay: deps.cashuPay });
+  const bch = deps.bch || createBch();
+  const payments = createPayments({ db, intents, mezo, concordium, lightning, bch, api, cfg, clock: deps.clock, cashuPay: deps.cashuPay });
   const bot = createBot({ api, db, cfg, payments, intents, concordium, lightning, ai: budgetedAi(env.AI, db, cfg.aiCallsPerDay), clock: deps.clock });
   return { cfg, db, api, intents, mezo, concordium, payments, bot };
 }
@@ -92,7 +129,13 @@ async function handlePay(req, env, url, deps) {
       ccd: [{ assetId: CCD_ASSET, symbol: 'CCD', chain: 'ccd', chainName: concordium.net.name, direct: true }],
       ln: [{ assetId: LN_ASSET, symbol: 'Lightning', chain: 'ln', chainName: 'Cashu ecash', direct: true }],
     }[inv.payout_chain];
-    const options = inv.status !== 'SENT' ? [] : direct || await intents.payOptions().catch(() => []);
+    // BCH payouts: BCH and PUSD straight to the freelancer first, then anything else through 1Click
+    const bchDirect = [
+      { assetId: BCH_ASSET, symbol: 'BCH', chain: 'bch', chainName: 'Bitcoin Cash · WizardConnect', direct: true },
+      { assetId: PUSD_ASSET, symbol: 'PUSD', chain: 'bch', chainName: 'ParyonUSD · Bitcoin Cash', direct: true },
+    ];
+    const viaIntents = async () => (await intents.payOptions().catch(() => [])).filter((o) => !(inv.payout_chain === 'bch' && o.chain === 'bch'));
+    const options = inv.status !== 'SENT' ? [] : direct || [...(inv.payout_chain === 'bch' ? bchDirect : []), ...await viaIntents()];
     const badge = await badgeOf(cfg, db, concordium);
     return html(payPage({ token, invoice: publicInvoice(inv, owner), options, lang: owner?.lang, badge }));
   }
@@ -139,6 +182,10 @@ export default {
     }
 
     if (url.pathname.startsWith('/pay/')) return handlePay(req, env, url, deps);
+    if (url.pathname === '/demo') return handleDemo(env, url, { ...deps, ip: req.headers.get('cf-connecting-ip') || '' });
+    if (url.pathname === '/' || url.pathname === '') return html(landingPage({ presentation: env.PRESENTATION_URL, donate: env.DEMO_BCH_ADDRESS }));
+    // WizardConnect + transaction builder for "Pay with my wallet" on Bitcoin Cash invoices (client/bch-wallet.js)
+    if (url.pathname === '/bch-wallet.js') return new Response(BCH_WALLET_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
     if (url.pathname.startsWith('/x402/')) return handleX402(req, env, url, deps);
 
     // The Agent Card registered in the Concordium Agent Registry: served byte for byte, so its SHA-256 matches on chain.

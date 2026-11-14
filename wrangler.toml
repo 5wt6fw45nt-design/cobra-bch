@@ -8,6 +8,8 @@ preview_urls = false
 
 [vars]
 PUBLIC_URL = "https://cobra-near.ancient-shape-040f.workers.dev"   # this Worker's URL, used in payment links
+DEMO_BCH_ADDRESS = "bitcoincash:zpwlcxelj25wkpsq7qjmyftfy4tt7hnefvk3jhxmcx"   # BCH BLAZE: /demo invoices pay here; also the EMBER2026 donation address
+# PRESENTATION_URL = ""   # BCH BLAZE: the Widget Factory presentation, linked in the home page banner
 
 [[d1_databases]]
 binding = "DB"

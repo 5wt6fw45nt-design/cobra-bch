@@ -5,6 +5,7 @@ import { CHAIN_NAMES } from './intents.js';
 import { MUSD_ASSET, taggedAmount, formatUnits, transferData } from './mezo.js';
 import { CCD_ASSET, taggedCcd, formatCcd } from './concordium.js';
 import { payWithToken } from './cashu.js';
+import { BCH_ASSET, PUSD_ASSET, PUSD, taggedSats, formatBch, formatPusd, lockingHex, memoHex, bip21, tokenCashAddr, plainCashAddr, txUrl as bchTxUrl } from './bch.js';
 
 export const LN_ASSET = 'ln:bolt11';
 const LN_MINUTES = 50; // a fresh BOLT11 per attempt; wallets usually let them live an hour or more
@@ -26,7 +27,7 @@ const INCOMING = new Set(['KNOWN_DEPOSIT_TX', 'PROCESSING']);
 
 const DIRECT_DAYS = 30; // a direct payment has no deposit address to expire; watch the invoice this long
 
-export function createPayments({ db, intents, mezo, concordium, lightning, api, cfg, clock = Date.now, cashuPay }) {
+export function createPayments({ db, intents, mezo, concordium, lightning, bch, api, cfg, clock = Date.now, cashuPay }) {
   cashuPay ||= payWithToken;
   const notify = (userId, text, extra = {}) => api.call('sendMessage', message(userId, text, extra)).catch((e) => console.error('[notify]', e.message));
   const kb = (rows) => ({ reply_markup: { inline_keyboard: rows } });
@@ -83,8 +84,45 @@ export function createPayments({ db, intents, mezo, concordium, lightning, api, 
         return q.verify && await lightning.settled(q.verify) ? { hash: 'lightning', url: null } : null;
       },
     },
+    // Bitcoin Cash: BCH or PUSD straight to the freelancer's address, signed in the client's wallet over WizardConnect
+    // (or sent by hand from the QR). Any other token still reaches the freelancer as BCH through 1Click (hybrid).
+    bch: {
+      hybrid: true,
+      assets: {
+        [BCH_ASSET]: {
+          symbol: 'BCH',
+          async open(inv, now) {
+            const price = Number(await intents.payoutUnits(inv.amount_cents, inv.currency, 'bch'));
+            const sats = taggedSats(price, inv.id);
+            return { shown: formatBch(sats), amount: String(sats), watch: { kind: 'bch', to: inv.payout_address, script: lockingHex(inv.payout_address), sats, minSats: Math.floor(price * 0.99), invoiceId: inv.id, fromHeight: await bch.tip(), since: now } };
+          },
+        },
+        [PUSD_ASSET]: {
+          symbol: 'PUSD',
+          async open(inv, now) {
+            const cents = Math.ceil(Number(await intents.payoutUnits(inv.amount_cents, inv.currency, 'near')) / 1e4); // USDC 6 dec → cents
+            return { shown: formatPusd(cents), amount: String(cents), watch: { kind: 'pusd', to: inv.payout_address, script: lockingHex(inv.payout_address), cents, invoiceId: inv.id, fromHeight: await bch.tip(), since: now } };
+          },
+        },
+      },
+      wallet: (q, inv) => ({
+        chainName: 'Bitcoin Cash', address: q.kind === 'pusd' ? tokenCashAddr(q.to) : plainCashAddr(q.to),
+        direct: {
+          kind: 'bch', token: q.kind === 'pusd' ? { category: PUSD.category, amount: String(q.cents) } : null,
+          sats: q.kind === 'pusd' ? 0 : q.sats, memo: memoHex(q.invoiceId),
+          uri: q.kind === 'pusd' ? tokenCashAddr(q.to) : bip21(q.to, q.sats, `Cobra ${inv.number || ''}`.trim()),
+          prompt: `Cobra · invoice ${inv.number || ''}`.trim(),
+        },
+      }),
+      async find(_dep, q) {
+        const hit = await bch.findPayment(q);
+        return hit ? { hash: hit.txid, url: bchTxUrl(hit.txid) } : null;
+      },
+    },
   };
-  const directOf = (dep) => Object.values(DIRECT).find((x) => x.asset === dep.origin_asset);
+  const directOf = (dep) => Object.values(DIRECT).find((x) => x.asset === dep.origin_asset || x.assets?.[dep.origin_asset]);
+  /** Is `assetId` paid directly for this payout? Hybrid payouts (BCH) send everything else through 1Click. */
+  const isDirect = (chain, assetId) => Boolean(DIRECT[chain] && (!DIRECT[chain].hybrid || DIRECT[chain].assets[assetId]));
 
   /** What the payment page needs to show for a deposit. Direct payments add what a wallet needs to pay. */
   const view = (d, inv = null) => {
@@ -100,8 +138,10 @@ export function createPayments({ db, intents, mezo, concordium, lightning, api, 
 
   /** Direct payouts: one watch per invoice for the exact amount, created the first time the client opens it. */
   async function startDirect(inv, assetId, now) {
-    const x = DIRECT[inv.payout_chain];
-    if (assetId !== x.asset) throw new PayError('asset');
+    const chain = DIRECT[inv.payout_chain];
+    // One payout can offer several direct assets (BCH: BCH and PUSD); each has its own open() and symbol
+    const x = chain.assets ? (chain.assets[assetId] && { ...chain, ...chain.assets[assetId], asset: assetId }) : chain;
+    if (!x || assetId !== x.asset) throw new PayError('asset');
     // One watch per invoice; Lightning gets a new BOLT11 when the last one is about to expire
     const existing = (await db.depositsFor(inv.id)).find((d) => d.origin_asset === x.asset && d.status === 'PENDING_DEPOSIT' && d.deadline > now + 5 * 60_000);
     if (existing) return view(existing, inv);
@@ -158,7 +198,7 @@ export function createPayments({ db, intents, mezo, concordium, lightning, api, 
   async function startPayment(inv, { assetId, refundTo }) {
     const now = clock();
     if (!inv || inv.status !== 'SENT') throw new PayError('closed');
-    if (DIRECT[inv.payout_chain]) return startDirect(inv, assetId, now);
+    if (isDirect(inv.payout_chain, assetId)) return startDirect(inv, assetId, now);
     const opt = (await intents.payOptions()).find((o) => o.assetId === assetId);
     if (!opt) throw new PayError('asset');
     const refund = String(refundTo || '').trim().slice(0, 120);
@@ -239,5 +279,5 @@ export function createPayments({ db, intents, mezo, concordium, lightning, api, 
     return list.length;
   }
 
-  return { startPayment, refresh, refreshInvoice, sweep, view, settleX402, payCashu };
+  return { startPayment, refresh, refreshInvoice, sweep, view, settleX402, payCashu, isDirect };
 }

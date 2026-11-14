@@ -1,3 +1,5 @@
+import { isCashAddr, plainCashAddr } from './bch.js';
+
 // NEAR Intents 1Click API: the client pays with any token on any chain, the freelancer receives USDC on NEAR
 // (or USDC on Arbitrum, or BCH: see PAYOUTS).
 // Docs: https://docs.near-intents.org/near-intents/integration/distribution-channels/1click-api
@@ -10,7 +12,7 @@ export const FINAL = ['SUCCESS', 'REFUNDED', 'FAILED'];
 export const PAYOUTS = {
   near: { asset: USDC, symbol: 'USDC', decimals: 6, stable: true, chainName: 'NEAR', example: 'marta.near' },
   arb: { asset: 'nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near', symbol: 'USDC', decimals: 6, stable: true, chainName: 'Arbitrum', example: '0x1234…abcd' },
-  bch: { asset: 'nep141:bch.omft.near', symbol: 'BCH', decimals: 8, stable: false, chainName: 'Bitcoin Cash', example: 'bitcoincash:qp…' },
+  bch: { asset: 'nep141:bch.omft.near', symbol: 'BCH', decimals: 8, stable: false, chainName: 'Bitcoin Cash', example: 'bitcoincash:zp…' }, // direct BCH/PUSD (bch.js) or anything via 1Click
   mezo: { direct: true, symbol: 'MUSD', decimals: 18, stable: true, chainName: 'Mezo', example: '0x1234…abcd' }, // paid directly, see mezo.js
   ccd: { direct: true, symbol: 'CCD', decimals: 6, stable: false, chainName: 'Concordium', example: '3z9dkoTnLi…' }, // paid directly or over x402, see concordium.js
   ln: { direct: true, symbol: 'sats', decimals: 0, stable: false, chainName: 'Lightning', example: 'tu@minibits.cash' }, // Lightning address, or Cashu ecash melted into it, see lightning.js / cashu.js
@@ -21,7 +23,7 @@ export function isPayoutAddress(chain, s) {
   const a = String(s || '').trim();
   if (chain === 'near') return isNearAccount(a);
   if (chain === 'arb' || chain === 'mezo') return /^0x[0-9a-fA-F]{40}$/.test(a);
-  if (chain === 'bch') return /^(bitcoincash:)?[qp][02-9ac-hj-np-z]{41}$/.test(a.toLowerCase());
+  if (chain === 'bch') return isCashAddr(a); // q/p, or the token-aware z/r form wallets show for CashTokens
   if (chain === 'ccd') return /^[1-9A-HJ-NP-Za-km-z]{50}$/.test(a);
   if (chain === 'ln') return /^[a-z0-9._+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(a);
   return false;
@@ -146,7 +148,7 @@ export function createIntents({ base, apiKey, rpc }, fetchFn = (...a) => fetch(.
         depositType: 'ORIGIN_CHAIN',
         destinationAsset: p.asset,
         amount,
-        recipient,
+        recipient: payout === 'bch' ? plainCashAddr(recipient) : recipient, // 1Click wants the plain q… form
         recipientType: 'DESTINATION_CHAIN',
         refundTo,
         refundType: 'ORIGIN_CHAIN',

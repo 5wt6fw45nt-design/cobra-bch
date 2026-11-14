@@ -813,3 +813,144 @@ test('the bot follows the language of the message: an English voice note gets En
   assert.match(s.last().text, /Invoice draft/);
   assert.equal((await s.db.getUser(s.ME)).lang, 'en');
 });
+
+// --- Bitcoin Cash (BCH BLAZE): BCH and PUSD straight to the freelancer, WizardConnect on the page ---
+
+import { BCH_ASSET, PUSD_ASSET, PUSD, createBch, decodeCashAddr, plainCashAddr, tokenCashAddr, lockingHex, taggedSats, memoHex, readMemo, bip21, matches } from '../src/bch.js';
+
+const ZADDR = 'bitcoincash:zpwlcxelj25wkpsq7qjmyftfy4tt7hnefvk3jhxmcx';
+const QADDR = 'bitcoincash:qpwlcxelj25wkpsq7qjmyftfy4tt7hnefv3mpfga84';
+
+test('BCH helpers: cashaddr forms, locking script, tagged sats, memo, BIP21', () => {
+  assert.equal(plainCashAddr(ZADDR), QADDR, 'z… (tokens) and q… are the same key');
+  assert.equal(tokenCashAddr(QADDR), ZADDR);
+  assert.equal(decodeCashAddr(ZADDR).tokens, true);
+  assert.equal(decodeCashAddr('bitcoincash:qpwlcxelj25wkpsq7qjmyftfy4tt7hnefv3mpfga85'), null, 'bad checksum');
+  assert.ok(isPayoutAddress('bch', ZADDR), 'token-aware addresses are accepted');
+  assert.equal(lockingHex(ZADDR), '76a9145dfc1b3f92a8eb0600f025b225692556bf5e794b88ac');
+  assert.equal(taggedSats(123456, 42), 124042, 'price rounded up to 1000 sats + invoice id');
+  assert.equal(taggedSats(123000, 1042), 123042);
+  assert.equal(readMemo(memoHex(42)), '42');
+  assert.equal(readMemo('6a0442434d52'), null, 'other OP_RETURNs are not ours');
+  assert.equal(bip21(ZADDR, 124042, 'Cobra 7'), `${QADDR}?amount=0.00124042&message=Cobra%207`);
+});
+
+test('BCH payment matching: tagged amount, or memo + price; PUSD exact, or memo + at least the price', () => {
+  const script = lockingHex(ZADDR);
+  const out = (sats, extra = {}) => ({ value: sats / 1e8, scriptPubKey: { hex: script }, ...extra });
+  const memo = { value: 0, scriptPubKey: { hex: memoHex(7) } };
+  const w = { kind: 'bch', script, sats: 124007, minSats: 122760, invoiceId: 7 };
+  assert.ok(matches({ vout: [out(124007)] }, w), 'exact tagged amount, from any wallet');
+  assert.ok(!matches({ vout: [out(124000)] }, w), 'untagged amount without memo is not ours');
+  assert.ok(matches({ vout: [out(123500), memo] }, w), 'memo + at least the price');
+  assert.ok(!matches({ vout: [out(100000), memo] }, w), 'memo but too little');
+  const tok = (amount, category = PUSD.category) => out(1000, { tokenData: { category, amount: String(amount) } });
+  const p = { kind: 'pusd', script, cents: 39200, invoiceId: 7 };
+  assert.ok(matches({ vout: [tok(39200)] }, p));
+  assert.ok(!matches({ vout: [tok(39200, 'ab'.repeat(32))] }, p), 'another token is not PUSD');
+  assert.ok(matches({ vout: [tok(39300), memo] }, p));
+  assert.ok(!matches({ vout: [tok(39300)] }, p), 'without memo only the exact amount counts');
+});
+
+test('BCH chain: findPayment reads history and mempool, falls back to the next server', async () => {
+  const script = lockingHex(ZADDR);
+  const txs = { a1: { vout: [{ value: 0.5, scriptPubKey: { hex: script } }] }, b2: { vout: [{ value: 0.00124007, scriptPubKey: { hex: script } }] } };
+  const used = [];
+  const connect = async (url) => {
+    used.push(url);
+    if (url === 'down') throw new Error('unreachable');
+    return {
+      close() {},
+      async call(method, ...params) {
+        if (method === 'server.version') return ['Fulcrum', '1.5'];
+        if (method === 'blockchain.headers.get_tip') return { height: 900 };
+        if (method === 'blockchain.address.get_history') { assert.equal(params[0], QADDR, 'Fulcrum gets the plain address'); return [{ tx_hash: 'a1', height: 100 }, { tx_hash: 'b2', height: 0 }]; }
+        if (method === 'blockchain.transaction.get') return txs[params[0]];
+        throw new Error(method);
+      },
+    };
+  };
+  const c = createBch({ servers: ['down', 'up'], connect });
+  assert.equal(await c.tip(), 900);
+  assert.deepEqual(await c.findPayment({ kind: 'bch', to: ZADDR, script, sats: 124007, minSats: 1, invoiceId: 7, fromHeight: 890 }), { txid: 'b2', confirmed: false }, 'mempool payment counts (0-conf)');
+  assert.deepEqual(used.slice(0, 2), ['down', 'up']);
+});
+
+test('BCH invoices: BCH and PUSD direct (WizardConnect data), anything else via 1Click, freelancer told once', async () => {
+  const s = setup();
+  let hit = null;
+  const watches = [];
+  const bch = { tip: async () => 900, findPayment: async (w) => { watches.push(w); return hit && w.kind === hit.kind ? hit : null; } };
+  const intents = { ...s.intents, payoutUnits: async (cents, cur, chain) => (chain === 'bch' ? '140000000' : String(Math.round(cents * (cur === 'EUR' ? 112 : 100) * 100))) }; // 392 $ at 280 $/BCH = 1.4 BCH
+  const payments = createPayments({ db: s.db, intents, bch, api: s.api, cfg: s.cfg, clock: () => T0 });
+  await s.msg('Factura a Marta 350 euros por el logo');
+  await s.tap(s.buttons().find((b) => b.callback_data.startsWith('send:')).callback_data);
+  await s.tap(s.buttons().find((b) => b.callback_data.startsWith('po:bch:')).callback_data);
+  await s.msg(ZADDR);
+  const inv = await s.db.invoiceById(1);
+  assert.equal(inv.payout_chain, 'bch');
+  assert.equal(inv.payout_address, ZADDR);
+
+  const d = await payments.startPayment(inv, { assetId: BCH_ASSET });
+  assert.equal(d.address, QADDR, 'BCH goes to the plain address');
+  assert.equal(d.amountIn, '1.40000001', '1.4 BCH, tagged with invoice 1');
+  assert.equal(d.direct.kind, 'bch');
+  assert.equal(d.direct.sats, 140000001);
+  assert.equal(readMemo(d.direct.memo), '1');
+  assert.match(d.direct.uri, /^bitcoincash:qp.*\?amount=1\.40000001/);
+  assert.equal((await payments.startPayment(inv, { assetId: BCH_ASSET })).key, d.key, 'one watch per invoice and asset');
+
+  const p = await payments.startPayment(inv, { assetId: PUSD_ASSET });
+  assert.equal(p.address, ZADDR, 'PUSD goes to the token-aware address');
+  assert.equal(p.amountIn, '392.00', '350 € → 392.00 PUSD');
+  assert.deepEqual(p.direct.token, { category: PUSD.category, amount: '39200' });
+
+  const other = await payments.startPayment(inv, { assetId: USDC, refundTo: 'x.near' });
+  assert.equal(other.address, 'DEP1', 'other tokens still go through 1Click');
+  assert.equal(s.intents.st.lastQuote.recipient, ZADDR);
+
+  assert.equal(await payments.refresh(await s.db.getDeposit(p.key)), 'PENDING_DEPOSIT');
+  assert.equal(watches.at(-1).fromHeight, 900);
+  hit = { kind: 'pusd', txid: 'f00d', confirmed: false };
+  assert.equal(await payments.refresh(await s.db.getDeposit(p.key)), 'SUCCESS');
+  assert.match(s.last().text, /Marta García te ha pagado 350,00\s€/);
+  assert.match(s.last().text, /392.00 PUSD · Bitcoin Cash/);
+  assert.equal(s.buttons()[0].url, 'https://blockchair.com/bitcoin-cash/transaction/f00d');
+  assert.equal((await s.db.invoiceById(1)).status, 'PAID');
+});
+
+test('BCH payment page offers WizardConnect BCH and PUSD first, and serves the wallet script', async () => {
+  const s = setup();
+  await s.msg('Factura a Marta 350 euros por el logo');
+  await s.tap(s.buttons().find((b) => b.callback_data.startsWith('send:')).callback_data);
+  await s.tap(s.buttons().find((b) => b.callback_data.startsWith('po:bch:')).callback_data);
+  await s.msg(ZADDR);
+  const inv = await s.db.invoiceById(1);
+  const env = { DB: s.d1, PUBLIC_URL: 'https://cobra.test', BOT_TOKEN: 'x' };
+  const deps = { intents: s.intents, api: s.api, bch: { tip: async () => 1 } };
+  const page = await (await worker.fetch(new Request(`https://cobra.test/pay/${inv.pay_token}`), env, {}, deps)).text();
+  const opts = JSON.parse(page.match(/const OPTIONS = (.*);/)[1]);
+  assert.deepEqual(opts.slice(0, 2).map((o) => o.assetId), [BCH_ASSET, PUSD_ASSET]);
+  assert.ok(opts.some((o) => o.assetId === USDC), 'and the 1Click options after them');
+  const js = await worker.fetch(new Request('https://cobra.test/bch-wallet.js'), env, {}, deps);
+  assert.match(js.headers.get('content-type'), /javascript/);
+  assert.ok((await js.text()).length > 100_000);
+});
+
+test('home page has the BLAZE banner; /demo opens one $0.10 BCH invoice per visitor', async () => {
+  const s = setup();
+  const env = { DB: s.d1, PUBLIC_URL: 'https://cobra.test', BOT_TOKEN: 'x', DEMO_BCH_ADDRESS: ZADDR, PRESENTATION_URL: 'https://docs.google.com/presentation/d/x' };
+  const deps = { intents: s.intents, api: s.api, bch: { tip: async () => 1 } };
+  const home = await (await worker.fetch(new Request('https://cobra.test/'), env, {}, deps)).text();
+  assert.match(home, /BCH BLAZE 2026/);
+  assert.ok(home.includes(ZADDR) && home.includes('docs.google.com/presentation') && home.includes('/tree/ac3e0bb'));
+  const go = (q = '') => worker.fetch(new Request(`https://cobra.test/demo${q}`, { headers: { 'cf-connecting-ip': '1.2.3.4' } }), env, {}, deps);
+  const r1 = await go();
+  assert.equal(r1.status, 302);
+  assert.equal((await go()).headers.get('location'), r1.headers.get('location'), 'same visitor, same open invoice');
+  const inv = await s.db.invoiceByToken(new URL(r1.headers.get('location')).pathname.split('/')[2]);
+  assert.equal(inv.amount_cents, 10);
+  assert.equal(inv.payout_chain, 'bch');
+  assert.equal(inv.payout_address, ZADDR);
+  assert.notEqual((await go('?new=1')).headers.get('location'), r1.headers.get('location'));
+});

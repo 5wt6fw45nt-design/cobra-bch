@@ -27,12 +27,22 @@ The freelancer picks the network once (⚙️ Settings → Where I get paid):
 |---|---|---|
 | **USDC · NEAR** (default) | any token, any chain | NEAR Intents 1Click, `EXACT_OUTPUT` |
 | **USDC · Arbitrum** | any token, any chain | NEAR Intents 1Click, `EXACT_OUTPUT` |
-| **BCH · Bitcoin Cash** | any token, any chain | NEAR Intents 1Click, BCH at the live price |
+| **BCH · Bitcoin Cash** | **BCH or PUSD straight to the freelancer** (WizardConnect or QR), or any token via 1Click | Cobra watches the address on Fulcrum (history + mempool); 1Click for the rest |
 | **MUSD · Mezo** | MUSD on Mezo, straight to the freelancer | Cobra watches MUSD `Transfer` logs for the exact amount |
 | **CCD · Concordium** | CCD by a person, or by an AI agent over **x402** | Cobra watches the account, or verifies the agent's tx hash |
 | **sats · Lightning** | any Lightning wallet, or a pasted **Cashu ecash** token | LNURL-pay invoice from the freelancer's Lightning address; ecash melted at its mint |
 
 MUSD (Mezo's Bitcoin-backed stablecoin) is not routed by 1Click, so Mezo invoices are paid directly: the payment page shows the freelancer's address, the exact amount (tagged with the invoice id in the last wei so two equal invoices never collide), an EIP-681 QR, and a **Pay with my wallet** button that switches the wallet to Mezo and sends `transfer(to, amount)`. Cobra scans MUSD `Transfer` events to the freelancer every minute and alerts them with the explorer link. `MEZO_NETWORK` selects `testnet` (default, free to demo with faucet funds) or `mainnet`.
+
+### Bitcoin Cash: BCH and PUSD over WizardConnect (BCH BLAZE 2026)
+
+Built during BCH BLAZE (14–22 Nov 2026). Try it: open the Worker's home page and press **Pay a demo invoice** ($0.10 on mainnet).
+
+- **Direct BCH.** The freelancer gives a BCH address (the token-aware `z…` form works too). The invoice is priced in BCH at the live rate, rounded up to 1000 sats, and the invoice id is added in the last three digits, so a payment from any wallet scanning the BIP21 QR is recognised by its amount alone.
+- **Direct PUSD.** Invoices can be paid in ParyonUSD, the BCH-native dollar stablecoin (fungible CashToken `2469acc5…2544`, 2 decimals), exact to the cent, to the freelancer's token-aware address.
+- **Pay with my wallet (WizardConnect).** `client/bch-wallet.js` (bundled by `npm run build:client`, served at `/bch-wallet.js`) pairs with Paytaca, Cashonize or Zapit over the WizardConnect relay, discovers the wallet's addresses from its xpubs, selects BCH and PUSD coins, and builds the payment plus an `OP_RETURN "cobra" "<invoice id>"` memo. The wallet only signs and broadcasts; Cobra never sees a key or holds funds.
+- **Watching.** `src/bch.js` talks to public Fulcrum servers over WebSocket (with fallback): address history and mempool from the block the invoice was opened, verbose transactions, `tokenData` for PUSD. A payment seen in the mempool settles the invoice (0-conf, as BCH merchants do) and the freelancer gets a Telegram alert with the transaction. Any other token still reaches the freelancer as BCH through NEAR Intents.
+- **Before vs after.** Everything above is new; the voice/AI layer, the NEAR/Mezo/Concordium/Lightning payouts and the payment page existed before ([pre-BLAZE code](https://github.com/5wt6fw45nt-design/cobra-near/tree/ac3e0bb), [pre-BLAZE demo](https://x.com/Cadawallet/status/2117644899109761343)).
 
 ### Cashu ecash: pay an invoice by pasting a token
 
@@ -85,7 +95,8 @@ Design details:
 ## Run it
 
 ```bash
-npm test                                  # 28 tests, no network
+npm test                                  # 34 tests, no network
+npm run build:client                      # bundles the BCH wallet code (WizardConnect + libauth)
 wrangler d1 create cobra-near             # put the id in wrangler.toml
 wrangler d1 migrations apply cobra-near --remote
 wrangler secret put BOT_TOKEN             # from @BotFather
@@ -95,7 +106,7 @@ wrangler deploy
 open "https://<worker>/setup?secret=<WEBHOOK_SECRET>"
 ```
 
-Optional: `ONECLICK_API_KEY` (partner key from partners.near-intents.org), `NEAR_RPC`, `QUOTE_MINUTES`.
+Optional: `ONECLICK_API_KEY` (partner key from partners.near-intents.org), `NEAR_RPC`, `QUOTE_MINUTES`, `DEMO_BCH_ADDRESS` (enables `/demo`), `PRESENTATION_URL` (home page banner).
 
 ## Origin
 
