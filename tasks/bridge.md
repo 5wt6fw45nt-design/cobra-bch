@@ -42,3 +42,9 @@ Requisito: puente o cambio de stablecoins hacia y desde BCH (ej. USDC en ETH →
 Falta: servir /bridge.js y la página /bridge en el Worker, rutas del servidor para cotizar y seguir 1Click (BCH↔USDC), botón «Pasar a PUSD», tests, desplegar y probar con la Paytaca del usuario (comprobar que firma transacciones con pools de Cauldron).
 14/11 noche: servidor (src/bridge.js: 12 stablecoins en 8 redes, cotización EXACT_INPUT y estado de 1Click), página /bridge (src/bridgepage.js) con los dos sentidos y el banner, /bridge.js servido, 3 tests (37). Probado en local: cotización real 1 PUSD → 0,991 USDC en Base; 1 USDC Arbitrum → 0,00476 BCH; QR de WizardConnect. Falta: prueba real con Paytaca (firma con pools de Cauldron) y botón «Pasar a PUSD» en el bot.
 14/11 19:25: PRUEBA REAL OK. 0,50 PUSD → 0,488299 USDC en Base con una sola firma en Paytaca (tx f874dd1ffea79d0995003895641a7b62a3538cd2e5f822dd76c36034503d0fc2, 7 pools, memo «cobra bridge»). 1Click: depósito visto tras confirmación BCH, entregado ~25 min después del envío. Nota: en la factura demo, Paytaca no incluyó nuestro OP_RETURN (se reconoció por el importe marcado): revisar.
+
+## MUSD (16/11)
+- Añadido MUSD (Moria USD, categoría b38a33f7…f366, 2 decimales, verificada en BCMR de Paytaca) al puente en los dos sentidos, más pestaña directa BCH → PUSD/MUSD.
+- Prueba real 1: 0.003 BCH → 0.61 MUSD por 3 pools de Cauldron, tx 255b1d6a7be60abeeb65971e6bce068bb31e1289e95ac1cae49c95c3b157bf62
+- Prueba real 2: 0.61 MUSD → 2 pools → 0.00294295 BCH a NEAR Intents (presupuesto 0.600489 USDC en Base a 0xaa1b…bed1), tx f89c8dbab68f8a13ced3c0c5006a364d09efbdb31b90cd17dbd988624aa01f71. Llegada del USDC: pendiente.
+- Paytaca mostraba mal el icono: WizardConnect pedía /favicon.ico (devolvía texto). Ahora /logo.png y /favicon.ico sirven el logo.
