@@ -24,10 +24,13 @@ export function presentationPage({ logo = '/logo.png' } = {}) {
     `<div class="center"><h2>BCH <span class="red">Usage</span></h2>
        <p>Invoices priced in BCH (amount tagged with the invoice id) or in PUSD, the BCH-native dollar CashToken. The page builds the transaction with a <code>cobra &lt;invoice&gt;</code> OP_RETURN and the wallet signs it over WizardConnect. Cobra watches Fulcrum (history, mempool, tokenData).</p>
        <p>Bridge: PUSD or MUSD is swapped on <b>Cauldron</b> and the BCH goes straight to a <b>NEAR Intents</b> deposit, in one transaction.</p>
-       <pre>Real mainnet tests (14 Nov 2026)
+       <pre>Real mainnet tests (14 and 16 Nov 2026)
 invoice  $0.10 → 0.00048009 BCH   tx 6763f4f4…
 bridge   0.50 PUSD → 7 Cauldron pools → 0.00236462 BCH
-         → NEAR Intents → 0.488 USDC on Base   tx f874dd1f…</pre></div>`,
+         → NEAR Intents → 0.488 USDC on Base   tx f874dd1f…
+MUSD (16 Nov)  0.003 BCH → 0.61 MUSD           tx 7da74220…
+         0.61 MUSD → 6 Cauldron pools → NEAR Intents
+         → 0.615 USDC on Base                  tx 66046f16…</pre></div>`,
     `<div class="split"><div><h2>The Vision for Cobra</h2><div class="bar"></div></div><ul>
        <li>Every freelancer and small shop can bill in BCH from the chat app they already use</li>
        <li>Next: recurring invoices, CashToken receipts, shared team inboxes, a point-of-sale mode<ul><li>Business: free to start; a small fee on bridged amounts and a paid plan for teams and accountants</li></ul></li>

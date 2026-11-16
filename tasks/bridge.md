@@ -48,3 +48,5 @@ Falta: servir /bridge.js y la página /bridge en el Worker, rutas del servidor p
 - Prueba real 1: 0.003 BCH → 0.61 MUSD por 3 pools de Cauldron, tx 255b1d6a7be60abeeb65971e6bce068bb31e1289e95ac1cae49c95c3b157bf62
 - Prueba real 2: 0.61 MUSD → 2 pools → 0.00294295 BCH a NEAR Intents (presupuesto 0.600489 USDC en Base a 0xaa1b…bed1), tx f89c8dbab68f8a13ced3c0c5006a364d09efbdb31b90cd17dbd988624aa01f71. Llegada del USDC: pendiente.
 - Paytaca mostraba mal el icono: WizardConnect pedía /favicon.ico (devolvía texto). Ahora /logo.png y /favicon.ico sirven el logo.
+- La prueba 2 caducó (QUOTE_EXPIRED: el bloque de BCH tardó más de 30 min) y NEAR devolvió el BCH (tx e6f04ba6…c21b). Arreglado con plazo de 3 h (f9b3012).
+- Repetida y OK: 0.003 BCH → 0.61 MUSD (tx 7da7422043e436843834dca2a12d569a6222b4e8c1e05515685707eda1cb36ec); 0.61 MUSD → 6 pools → 0.00295165 BCH a NEAR Intents (tx 66046f16f13c6c3faee08773378ea9337599efdd21478a9df526f0c3137c6bf7) → 0.614685 USDC en Base (tx 0xc5b1be2864c7a186c01b80a16764728f816a04a119701a7865bd356226e37878).
