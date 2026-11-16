@@ -970,6 +970,7 @@ function bridgeIntents() {
     tokens: async () => [
       { assetId: 'nep141:base-usdc', symbol: 'USDC', blockchain: 'base', decimals: 6 },
       { assetId: 'nep141:tron-usdt', symbol: 'USDT', blockchain: 'tron', decimals: 6 },
+      { assetId: 'nep141:btc.omft.near', symbol: 'BTC', blockchain: 'btc', decimals: 8, price: 64829 },
       { assetId: BCH_1CLICK, symbol: 'BCH', blockchain: 'bch', decimals: 8 },
     ],
     async swap(p) { calls.push(p); return { depositAddress: 'DEPO', amountInFormatted: '0.0047', amountOutFormatted: '1.00', amountOut: '1000000', timeEstimate: 109, deadline: '2026-11-14T16:00:00Z' }; },
@@ -984,12 +985,19 @@ test('bridge: address checks per chain', () => {
   assert.ok(isChainAddress('tron', 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf'));
   assert.ok(isChainAddress('bch', ZADDR));
   assert.ok(!isChainAddress('sol', '0x00'));
+  assert.ok(isChainAddress('btc', 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq'));
+  assert.ok(isChainAddress('btc', '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'));
+  assert.ok(!isChainAddress('btc', EVM));
+  assert.ok(isChainAddress('op', EVM));
+  assert.ok(isChainAddress('zec', 't1Rv4exT7bqhZqi2j7xz8bUHDMxwosrjADU'));
 });
 
 test('bridge: PUSD → USDC sends exact BCH sats to 1Click with a BCH refund; USDC → PUSD delivers BCH to the wallet', async () => {
   const it = bridgeIntents();
   const b = createBridge(it);
-  assert.deepEqual((await b.stables()).map((s) => s.id), ['USDC-base', 'USDT-tron']);
+  assert.deepEqual((await b.stables()).map((s) => s.id), ['USDC-base', 'USDT-tron', 'BTC-btc'], 'stablecoins first, then other assets');
+  const btc = (await b.stables()).find((s) => s.id === 'BTC-btc');
+  assert.equal(btc.kind, 'coin'); assert.equal(btc.price, 64829); assert.equal(btc.explorer, 'https://mempool.space/tx/');
 
   const out = await b.quote({ direction: 'out', stable: 'USDC-base', amount: '464585', to: EVM, refund: ZADDR });
   assert.equal(out.depositAddress, 'DEPO');
@@ -1004,7 +1012,7 @@ test('bridge: PUSD → USDC sends exact BCH sats to 1Click with a BCH refund; US
   await assert.rejects(b.quote({ direction: 'in', stable: 'USDC-base', amount: '1', to: ZADDR, refund: 'nope' }), /refund/);
   await assert.rejects(b.quote({ direction: 'out', stable: 'USDC-base', amount: '-5', to: EVM, refund: ZADDR }), /amount/);
   await assert.rejects(b.quote({ direction: 'out', stable: 'DOGE-x', amount: '5', to: EVM, refund: ZADDR }), /unknown/);
-  assert.deepEqual(await b.status('DEPO'), { status: 'SUCCESS', amountOut: '1.00', txOut: 'https://basescan/tx/1', txIn: null });
+  assert.deepEqual(await b.status('DEPO'), { status: 'SUCCESS', amountOut: '1.00', txOut: 'https://basescan/tx/1', txOutHash: null, txIn: null, txInHash: null, refundReason: null });
 });
 
 test('bridge page and endpoints are served, with the BLAZE banner', async () => {

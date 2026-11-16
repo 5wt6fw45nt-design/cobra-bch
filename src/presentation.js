@@ -20,7 +20,7 @@ export function presentationPage({ logo = '/logo.png' } = {}) {
        <li>Clients pay in BCH or PUSD from any wallet<ul><li>Paytaca, Cashonize, Zapit over WizardConnect, or any QR</li></ul></li>
        <li>Seen in seconds: Telegram alert with the transaction</li>
        <li>Non-custodial: Cobra never holds keys or funds</li>
-       <li>Keep it in dollars: PUSD or MUSD → USDC on 8 chains, one signature</li></ul></div>`,
+       <li>Keep it in dollars: PUSD or MUSD → USDC on 11 chains, one signature, no custody</li></ul></div>`,
     `<div class="center"><h2>BCH <span class="red">Usage</span></h2>
        <p>Invoices priced in BCH (amount tagged with the invoice id) or in PUSD, the BCH-native dollar CashToken. The page builds the transaction with a <code>cobra &lt;invoice&gt;</code> OP_RETURN and the wallet signs it over WizardConnect. Cobra watches Fulcrum (history, mempool, tokenData).</p>
        <p>Bridge: PUSD or MUSD is swapped on <b>Cauldron</b> and the BCH goes straight to a <b>NEAR Intents</b> deposit, in one transaction.</p>

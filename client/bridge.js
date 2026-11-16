@@ -1,5 +1,5 @@
 // Stablecoin bridge for BCH BLAZE (bundled separately into /bridge.js so invoice pages stay light).
-import { binToHex, hexToBin, encodeTransaction } from '@bitauth/libauth';
+import { binToHex, hexToBin, encodeTransaction, hashTransaction } from '@bitauth/libauth';
 import { connect, chain, scan, lock, addressAt, RECEIVE, manager } from './bch-wallet.js';
 
 import { ExchangeLab } from '@cashlab/cauldron';
@@ -75,6 +75,10 @@ async function signTrade(tx, picked, prompt) {
   if (res.error) throw new Error(res.error);
   return res.signedTransaction;
 }
+/** The txid of a signed transaction (hex). */
+export function txid(signed) {
+  return hashTransaction(hexToBin(signed));
+}
 
 async function walletCoins(onQr, onStep) {
   await connect(onQr);
@@ -119,7 +123,8 @@ export async function sellPusd({ to, cents, sats: exact, token = 'PUSD', memo, p
     { type: PayoutAmountRuleType.CHANGE, locking_bytecode: lock(change.address) },
   ], memo ? hexToBin(memo) : null, 1n);
   onStep?.('sign');
-  return { signed: await signTrade(tx, picked, prompt), sats: String(sats) };
+  const signed = await signTrade(tx, picked, prompt);
+  return { signed, txid: txid(signed), sats: String(sats) };
 }
 
 /** Buys `token` (PUSD or MUSD) with `sats` BCH on Cauldron, paid to the wallet's own address: { sats, token, prompt, onQr, onStep } → { signed, cents }. */
@@ -138,7 +143,8 @@ export async function buyPusd({ sats, token = 'PUSD', prompt, onQr, onStep }) {
     { type: PayoutAmountRuleType.CHANGE, locking_bytecode: lock(change.address) },
   ], null, 1n);
   onStep?.('sign');
-  return { signed: await signTrade(tx, picked, prompt), cents: String(trade.summary.demand) };
+  const signed = await signTrade(tx, picked, prompt);
+  return { signed, txid: txid(signed), cents: String(trade.summary.demand) };
 }
 
 export { sellPusd as sell, buyPusd as buy };

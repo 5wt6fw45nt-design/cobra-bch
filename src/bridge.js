@@ -9,14 +9,32 @@ export const BCH_1CLICK = 'nep141:bch.omft.near';
 /** Stablecoins on other chains the bridge offers, in this order, if 1Click lists them. */
 export const BRIDGE_CHAINS = [
   ['USDC', 'base'], ['USDC', 'arb'], ['USDC', 'eth'], ['USDC', 'sol'], ['USDC', 'pol'], ['USDC', 'bsc'], ['USDC', 'near'],
-  ['USDT', 'eth'], ['USDT', 'tron'], ['USDT', 'sol'], ['USDT', 'bsc'], ['USDT', 'near'],
+  ['USDC', 'op'], ['USDC', 'avax'], ['USDC', 'gnosis'],
+  ['USDT', 'eth'], ['USDT', 'tron'], ['USDT', 'sol'], ['USDT', 'bsc'], ['USDT', 'near'], ['USDT', 'pol'], ['USDT', 'arb'],
 ];
-export const CHAIN_LABEL = { base: 'Base', arb: 'Arbitrum', eth: 'Ethereum', sol: 'Solana', pol: 'Polygon', bsc: 'BNB Chain', near: 'NEAR', tron: 'Tron' };
+/** Other assets NEAR Intents carries: anything here can come in as BCH (and from there PUSD/MUSD), or go out. */
+export const BRIDGE_COINS = [
+  ['BTC', 'btc'], ['ETH', 'eth'], ['ETH', 'base'], ['ETH', 'arb'], ['SOL', 'sol'], ['ZEC', 'zec'], ['LTC', 'ltc'],
+  ['DOGE', 'doge'], ['XRP', 'xrp'], ['BNB', 'bsc'], ['TRX', 'tron'],
+];
+export const CHAIN_LABEL = { base: 'Base', arb: 'Arbitrum', eth: 'Ethereum', sol: 'Solana', pol: 'Polygon', bsc: 'BNB Chain', near: 'NEAR', tron: 'Tron',
+  op: 'Optimism', avax: 'Avalanche', gnosis: 'Gnosis', btc: 'Bitcoin', zec: 'Zcash', ltc: 'Litecoin', doge: 'Dogecoin', xrp: 'XRP Ledger' };
+/** Block explorer transaction URL prefix per chain (the delivery link shown once a bridge settles). */
+export const EXPLORER_TX = { base: 'https://basescan.org/tx/', arb: 'https://arbiscan.io/tx/', eth: 'https://etherscan.io/tx/', sol: 'https://solscan.io/tx/',
+  pol: 'https://polygonscan.com/tx/', bsc: 'https://bscscan.com/tx/', near: 'https://nearblocks.io/txns/', tron: 'https://tronscan.org/#/transaction/',
+  op: 'https://optimistic.etherscan.io/tx/', avax: 'https://snowtrace.io/tx/', gnosis: 'https://gnosisscan.io/tx/', btc: 'https://mempool.space/tx/',
+  zec: 'https://blockchair.com/zcash/transaction/', ltc: 'https://blockchair.com/litecoin/transaction/', doge: 'https://blockchair.com/dogecoin/transaction/',
+  xrp: 'https://xrpscan.com/tx/', bch: 'https://blockchair.com/bitcoin-cash/transaction/' };
 
 /** Rough format check of an address on a 1Click chain, so a typo fails before any money moves. */
 export function isChainAddress(chain, a) {
   const s = String(a || '').trim();
-  if (['base', 'arb', 'eth', 'pol', 'bsc'].includes(chain)) return /^0x[0-9a-fA-F]{40}$/.test(s);
+  if (['base', 'arb', 'eth', 'pol', 'bsc', 'op', 'avax', 'gnosis'].includes(chain)) return /^0x[0-9a-fA-F]{40}$/.test(s);
+  if (chain === 'btc') return /^(bc1[02-9ac-hj-np-z]{11,71}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(s);
+  if (chain === 'ltc') return /^(ltc1[02-9ac-hj-np-z]{11,71}|[LM3][1-9A-HJ-NP-Za-km-z]{26,33})$/.test(s);
+  if (chain === 'doge') return /^[DA9][1-9A-HJ-NP-Za-km-z]{25,34}$/.test(s);
+  if (chain === 'zec') return /^t[13][1-9A-HJ-NP-Za-km-z]{33}$/.test(s);
+  if (chain === 'xrp') return /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(s);
   if (chain === 'sol') return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
   if (chain === 'tron') return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(s);
   if (chain === 'near') return isNearAccount(s);
@@ -27,13 +45,15 @@ export function isChainAddress(chain, a) {
 export class BridgeError extends Error {}
 
 export function createBridge(intents) {
-  /** [{ id: 'USDC-base', symbol, chain, label, assetId, decimals }] */
+  /** [{ id: 'USDC-base', symbol, chain, label, assetId, decimals, kind: 'stable'|'coin', price, explorer }] */
   async function stables() {
     const list = await intents.tokens();
-    return BRIDGE_CHAINS.flatMap(([symbol, chain]) => {
+    const take = (pairs, kind) => pairs.flatMap(([symbol, chain]) => {
       const t = list.find((x) => x.symbol === symbol && x.blockchain === chain);
-      return t ? [{ id: `${symbol}-${chain}`, symbol, chain, label: `${symbol} · ${CHAIN_LABEL[chain] || chain}`, assetId: t.assetId, decimals: t.decimals }] : [];
+      return t ? [{ id: `${symbol}-${chain}`, symbol, chain, label: `${symbol} · ${CHAIN_LABEL[chain] || chain}`, assetId: t.assetId, decimals: t.decimals,
+        kind, price: Number(t.price) || (kind === 'stable' ? 1 : 0), explorer: EXPLORER_TX[chain] || null }] : [];
     });
+    return [...take(BRIDGE_CHAINS, 'stable'), ...take(BRIDGE_COINS, 'coin')];
   }
   const pick = async (id) => {
     const s = (await stables()).find((x) => x.id === id);
@@ -75,7 +95,9 @@ export function createBridge(intents) {
     async status(depositAddress) {
       const st = await intents.status(depositAddress);
       const d = st.swapDetails || {};
-      return { status: st.status, amountOut: d.amountOutFormatted || null, txOut: d.destinationChainTxHashes?.[0]?.explorerUrl || null, txIn: d.originChainTxHashes?.[0]?.explorerUrl || null };
+      const hash = (x) => x?.[0]?.hash || null, url = (x) => x?.[0]?.explorerUrl || null;
+      return { status: st.status, amountOut: d.amountOutFormatted || null, txOut: url(d.destinationChainTxHashes), txOutHash: hash(d.destinationChainTxHashes),
+        txIn: url(d.originChainTxHashes), txInHash: hash(d.originChainTxHashes), refundReason: d.refundReason || null };
     },
   };
 }

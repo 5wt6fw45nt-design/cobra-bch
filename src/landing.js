@@ -78,7 +78,7 @@ ${blazeBanner({ presentation, donate })}
 
   <section class="card">
     <h2>New: stablecoin bridge</h2>
-    <p class="muted">Turn PUSD or MUSD (Moria USD) into USDC or USDT on 8 chains (Base, Arbitrum, Ethereum, Solana, Polygon, BNB Chain, NEAR, Tron) with one signature in your BCH wallet, or bring USDC in and swap it to PUSD or MUSD. Cauldron for the BCH side, NEAR Intents across chains, WizardConnect for signing.</p>
+    <p class="muted">Turn PUSD or MUSD (Moria USD) into USDC or USDT on 11 chains (Base, Arbitrum, Ethereum, Solana, Polygon, BNB Chain, NEAR, Tron, Optimism, Avalanche, Gnosis) with one signature in your BCH wallet, or bring USDC, BTC, ETH, SOL and more in and swap it to PUSD or MUSD. One signature, no custody, every step linked to its transaction. Cauldron for the BCH side, NEAR Intents across chains, WizardConnect for signing.</p>
     <a class="cta" href="/bridge">Open the bridge</a>
   </section>
 

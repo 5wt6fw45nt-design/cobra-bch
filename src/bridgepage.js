@@ -1,4 +1,4 @@
-// /bridge: PUSD or MUSD ⇄ USDC/USDT on 8 chains. PUSD/MUSD ⇄ BCH runs on Cauldron, signed in the user's wallet over WizardConnect;
+// /bridge: PUSD or MUSD ⇄ USDC/USDT on 11 chains (plus BTC, ETH, SOL… in and out through BCH). PUSD/MUSD ⇄ BCH runs on Cauldron, signed in the user's wallet over WizardConnect;
 // BCH ⇄ stablecoins runs on NEAR Intents. Selling PUSD pays the BCH straight to the 1Click deposit address, so the BCH
 // side is a single signature. Cobra never holds funds or keys.
 
@@ -12,7 +12,7 @@ export function bridgePage({ stables, banner = '' }) {
 <meta charset="utf-8"><link rel="icon" href="/logo.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cobra Bridge · PUSD & MUSD ⇄ USDC</title>
-<meta name="description" content="Move dollars between Bitcoin Cash (PUSD or MUSD) and USDC/USDT on 8 chains, signed in your own wallet.">
+<meta name="description" content="Move dollars between Bitcoin Cash (PUSD or MUSD) and USDC/USDT on 11 chains, or bring in BTC, ETH, SOL: one signature, no custody.">
 <script src="${QR}"></script>
 <style>
   :root { --bg:#f4f6fa; --card:#fff; --ink:#0f1b2d; --soft:#5d6b82; --line:#dfe5ee; --accent:#0ac18e; --accent-ink:#04261b; --bad:#c8352b; --warn:#b26a00; }
@@ -46,6 +46,9 @@ export function bridgePage({ stables, banner = '' }) {
   .steps div.now::before { content:'◐ '; color:var(--warn); }
   .hidden { display:none !important; }
   a { color:var(--accent); }
+  .trust { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .trust span { font-size:13px; border:1px solid var(--line); border-radius:999px; padding:4px 10px; background:var(--card); }
+  .steps a { margin-left:4px; }
   footer { text-align:center; color:var(--soft); font-size:12px; }
 </style>
 </head>
@@ -55,7 +58,8 @@ ${banner}
   <section>
     <div class="muted">🧾 Cobra · stablecoin bridge</div>
     <h1>BCH dollars ⇄ USDC, from your own wallet</h1>
-    <p class="muted">Bitcoin Cash dollars (PUSD or MUSD) to USDC or USDT on 8 chains and back. The BCH side is swapped on Cauldron and signed in Paytaca, Cashonize or Zapit over WizardConnect; the cross-chain side runs on NEAR Intents. No account, no custody.</p>
+    <p class="muted">Bitcoin Cash dollars (PUSD or MUSD) to USDC or USDT on 11 chains and back, or bring in BTC, ETH, SOL and more. The BCH side is swapped on Cauldron and signed in Paytaca, Cashonize or Zapit over WizardConnect; the cross-chain side runs on NEAR Intents.</p>
+    <div class="trust"><span>✍️ One signature in your wallet</span><span>🔒 No custody, ever: nobody holds your coins in between</span><span>🧾 Every step links to its transaction</span></div>
   </section>
 
   <div class="coin" role="radiogroup" aria-label="Bitcoin Cash dollar"><button id="cPUSD" class="on" data-t="PUSD">PUSD<small>ParyonUSD</small></button><button id="cMUSD" data-t="MUSD">MUSD<small>Moria USD</small></button></div>
@@ -124,7 +128,14 @@ const $ = (id) => document.getElementById(id);
 const MEMO = '6a05636f6272610662726964676' + '5'; // OP_RETURN "cobra" "bridge"
 let lib = null, me = null, bal = null, T = 'PUSD';
 const load = async () => (lib ||= await import('/bridge.js'));
-for (const sel of ['oStable', 'iStable']) for (const s of STABLES) { const o = document.createElement('option'); o.value = s.id; o.textContent = s.label; $(sel).append(o); }
+for (const sel of ['oStable', 'iStable']) for (const [kind, title] of [['stable', 'Stablecoins'], ['coin', 'Other assets (through BCH)']]) {
+  const g = document.createElement('optgroup'); g.label = title;
+  for (const s of STABLES.filter((x) => x.kind === kind)) { const o = document.createElement('option'); o.value = s.id; o.textContent = s.label; g.append(o); }
+  if (g.children.length) $(sel).append(g);
+}
+const BCH_TX = 'https://blockchair.com/bitcoin-cash/transaction/';
+/** Appends a link to a transaction to a step line. */
+const txLink = (el, url, text) => { if (!url) return; const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = text; el.append(' · ', a); };
 const stable = (id) => STABLES.find((s) => s.id === id);
 const showQr = (qr, uri) => { $('qr').innerHTML = ''; if (window.QRCode) new QRCode($('qr'), { text: qr, width: 230, height: 230, correctLevel: QRCode.CorrectLevel.L }); $('qrHint').classList.remove('hidden'); $('qrLink').href = uri; };
 const hideQr = () => { $('qr').innerHTML = ''; $('qrHint').classList.add('hidden'); };
@@ -178,10 +189,11 @@ $('oQuote').onclick = async () => {
 $('oGo').onclick = async () => {
   $('oErr').textContent = ''; $('oGo').disabled = true; $('oSteps').classList.remove('hidden'); step('os', 1);
   try {
-    await (await load()).sellPusd({ to: outQuote.q.depositAddress, cents: outQuote.cents, sats: outQuote.sats, token: outQuote.token, memo: MEMO, prompt: 'Cobra bridge: ' + usd(outQuote.cents, outQuote.token) + ' → ' + outQuote.q.symbolOut, onQr: showQr });
+    const r = await (await load()).sellPusd({ to: outQuote.q.depositAddress, cents: outQuote.cents, sats: outQuote.sats, token: outQuote.token, memo: MEMO, prompt: 'Cobra bridge: ' + usd(outQuote.cents, outQuote.token) + ' → ' + outQuote.q.symbolOut, onQr: showQr });
     hideQr(); step('os', 2); $('oGo').classList.add('hidden');
+    txLink($('os1'), BCH_TX + r.txid, 'BCH transaction');
     if (bal) { bal[outQuote.token.toLowerCase()] -= outQuote.cents; showBal(); }
-    follow(outQuote.q.depositAddress, 'os', (s) => s === 'SUCCESS', $('oErr'));
+    follow(outQuote.q.depositAddress, 'os', (s) => s === 'SUCCESS', $('oErr'), null, stable($('oStable').value).explorer);
   } catch (e) { $('oErr').textContent = e.message; } finally { $('oGo').disabled = false; }
 };
 
@@ -210,19 +222,20 @@ $('sGo').onclick = async () => {
     hideQr(); $('sGo').classList.add('hidden');
     if (bal) { bal[swQuote.token.toLowerCase()] += Number(r.cents); bal.sats -= Number(swQuote.sats); showBal(); }
     $('sErr').innerHTML = '<span style="color:var(--accent)">✓ ' + usd(r.cents, swQuote.token) + ' on the way to your wallet.</span>';
+    txLink($('sErr'), BCH_TX + r.txid, 'see the transaction');
   } catch (e) { $('sErr').textContent = e.message; } finally { $('sGo').disabled = false; }
 };
 
 /** Follows a 1Click deposit until it settles; then(fin) when done. */
-function follow(dep, prefix, isDone, errBox, then) {
+function follow(dep, prefix, isDone, errBox, then, explorer) {
   const t = setInterval(async () => {
     try {
       const s = await (await fetch('/bridge/status?d=' + encodeURIComponent(dep))).json();
       if (s.status === 'PROCESSING' || s.status === 'KNOWN_DEPOSIT_TX') step(prefix, 2);
-      if (s.status === 'REFUNDED' || s.status === 'FAILED') { clearInterval(t); errBox.textContent = 'NEAR Intents refunded the payment to your address.'; }
+      if (s.status === 'REFUNDED' || s.status === 'FAILED') { clearInterval(t); errBox.textContent = 'NEAR Intents refunded the payment to your address' + (s.refundReason ? ' (' + s.refundReason.toLowerCase().replace(/_/g, ' ') + ')' : '') + '.'; }
       if (isDone(s.status)) {
         clearInterval(t); step(prefix, then ? 3 : 4);
-        if (s.txOut) { const a = document.createElement('a'); a.href = s.txOut; a.target = '_blank'; a.textContent = 'See the delivery transaction'; $(prefix + '3').append(' · ', a); }
+        txLink($(prefix + (then ? '2' : '3')), s.txOut || (s.txOutHash && explorer ? explorer + s.txOutHash : null), 'delivery transaction');
         then?.(s);
       }
     } catch {}
@@ -236,7 +249,7 @@ $('iQuote').onclick = async () => {
     if (!me) await connect();
     const s = stable($('iStable').value);
     const amount = Number($('iAmount').value.replace(',', '.'));
-    if (!(amount >= 0.5)) throw new Error('Write an amount of at least 0.50.');
+    if (!(amount * (s.price || 1) >= 0.5)) throw new Error('Write an amount worth at least $0.50.');
     $('iQuote').disabled = true;
     const units = String(Math.round(amount * 10 ** s.decimals));
     const q = await post('/bridge/quote', { direction: 'in', stable: s.id, amount: units, to: me, refund: $('iRefund').value.trim() });
@@ -256,10 +269,10 @@ $('iQuote').onclick = async () => {
         $('iSwap').disabled = true; $('iErr').textContent = '';
         try {
           const r = await (await load()).buyPusd({ sats: String(sats), token: want, prompt: 'Cobra bridge: BCH → ' + want, onQr: showQr });
-          hideQr(); step('is', 4); $('iSwap').classList.add('hidden'); $('is3').append(' · ' + usd(r.cents, want) + ' received');
+          hideQr(); step('is', 4); $('iSwap').classList.add('hidden'); $('is3').append(' · ' + usd(r.cents, want) + ' received'); txLink($('is3'), BCH_TX + r.txid, 'Cauldron swap');
         } catch (e) { $('iErr').textContent = e.message; } finally { $('iSwap').disabled = false; }
       };
-    });
+    }, BCH_TX);
   } catch (e) { $('iErr').textContent = e.message; } finally { $('iQuote').disabled = false; }
 };
 </script>
