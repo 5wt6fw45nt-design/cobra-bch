@@ -1014,6 +1014,7 @@ test('bridge page and endpoints are served, with the BLAZE banner', async () => 
   const page = await (await worker.fetch(new Request('https://cobra.test/bridge'), env, {}, deps)).text();
   assert.match(page, /PUSD & MUSD ⇄ USDC/);
   assert.match(page, /data-t="MUSD">MUSD<small>Moria USD/, 'MUSD (Moria USD) can be picked as well as PUSD');
+  assert.match(page, /id="tSw">BCH → /, 'a direct BCH → PUSD/MUSD swap tab');
   assert.match(page, /BCH BLAZE 2026/);
   assert.match(page, /USDT · Tron/);
   const js = await worker.fetch(new Request('https://cobra.test/bridge.js'), env, {}, deps);

@@ -23,7 +23,7 @@ export function bridgePage({ stables, banner = '' }) {
   h1 { font-size:30px; margin:4px 0; letter-spacing:-.4px; }
   .muted { color:var(--soft); font-size:14px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; }
-  .tabs, .coin { display:grid; grid-template-columns:1fr 1fr; gap:6px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:5px; }
+  .tabs, .coin { display:grid; grid-template-columns:repeat(auto-fit, minmax(0, 1fr)); gap:6px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:5px; }
   .tabs button, .coin button { margin:0; background:transparent; color:var(--ink); font-weight:700; }
   .tabs button.on, .coin button.on { background:var(--accent); color:var(--accent-ink); }
   .coin { background:transparent; border:0; padding:0; } .coin button { border:1px solid var(--line); font-weight:600; padding:10px; }
@@ -60,7 +60,7 @@ ${banner}
 
   <div class="coin" role="radiogroup" aria-label="Bitcoin Cash dollar"><button id="cPUSD" class="on" data-t="PUSD">PUSD<small>ParyonUSD</small></button><button id="cMUSD" data-t="MUSD">MUSD<small>Moria USD</small></button></div>
 
-  <div class="tabs"><button id="tOut" class="on"><span class="T">PUSD</span> → USDC</button><button id="tIn">USDC → <span class="T">PUSD</span></button></div>
+  <div class="tabs"><button id="tOut" class="on"><span class="T">PUSD</span> → USDC</button><button id="tIn">USDC → <span class="T">PUSD</span></button><button id="tSw">BCH → <span class="T">PUSD</span></button></div>
 
   <section class="card">
     <button id="connect">Connect my BCH wallet (WizardConnect)</button>
@@ -106,6 +106,16 @@ ${banner}
     <div class="err" id="iErr"></div>
   </section>
 
+  <section class="card hidden" id="sw">
+    <p class="muted" style="margin:0">Paid in BCH and want dollars? Swap it to <span class="T">PUSD</span> on Cauldron, straight back to your wallet.</p>
+    <label for="sAmount">BCH to swap</label>
+    <input id="sAmount" inputmode="decimal" placeholder="0.002">
+    <button id="sQuote" class="ghost">Get a quote</button>
+    <div class="hidden" id="sQuoteBox" style="margin-top:12px"></div>
+    <button id="sGo" class="hidden">Swap now · one signature</button>
+    <div class="err" id="sErr"></div>
+  </section>
+
   <footer>Cobra never holds funds · Cauldron pools via the Riften indexer · NEAR Intents 1Click · <a href="/">Cobra</a></footer>
 </main>
 <script>
@@ -122,13 +132,14 @@ const bch = (sats) => (Number(sats) / 1e8).toFixed(8) + ' BCH';
 const usd = (cents, t = T) => (Number(cents) / 100).toFixed(2) + ' ' + t;
 const showBal = () => { if (bal) $('wBal').textContent = usd(bal.pusd, 'PUSD') + ' · ' + usd(bal.musd, 'MUSD') + ' · ' + bch(bal.sats); };
 const pick = (t) => { T = t; for (const b of document.querySelectorAll('.coin button')) b.className = b.dataset.t === t ? 'on' : ''; for (const e of document.querySelectorAll('.T')) e.textContent = t; };
-for (const b of document.querySelectorAll('.coin button')) b.onclick = () => { pick(b.dataset.t); $('oQuoteBox').classList.add('hidden'); $('oGo').classList.add('hidden'); };
+for (const b of document.querySelectorAll('.coin button')) b.onclick = () => { pick(b.dataset.t); for (const id of ['oQuoteBox', 'oGo', 'sQuoteBox', 'sGo']) $(id).classList.add('hidden'); };
 if (new URLSearchParams(location.search).get('token') === 'MUSD') pick('MUSD');
 const step = (prefix, n) => { for (let i = 1; i <= 3; i++) $(prefix + i).className = i < n ? 'done' : i === n ? 'now' : ''; };
 const post = async (url, body) => { const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.detail || j.error || 'That did not work'); return j; };
 
-$('tOut').onclick = () => { $('tOut').className = 'on'; $('tIn').className = ''; $('out').classList.remove('hidden'); $('in').classList.add('hidden'); };
-$('tIn').onclick = () => { $('tIn').className = 'on'; $('tOut').className = ''; $('in').classList.remove('hidden'); $('out').classList.add('hidden'); };
+const TABS = { tOut: 'out', tIn: 'in', tSw: 'sw' };
+for (const [t, sec] of Object.entries(TABS)) $(t).onclick = () => { for (const [u, s] of Object.entries(TABS)) { $(u).className = u === t ? 'on' : ''; $(s).classList.toggle('hidden', u !== t); } };
+if (new URLSearchParams(location.search).get('tab') === 'swap') $('tSw').click();
 
 async function connect() {
   $('connect').disabled = true;
@@ -171,6 +182,33 @@ $('oGo').onclick = async () => {
     hideQr(); step('os', 2); $('oGo').classList.add('hidden');
     follow(outQuote.q.depositAddress, 'os', (s) => s === 'SUCCESS', $('oErr'));
   } catch (e) { $('oErr').textContent = e.message; } finally { $('oGo').disabled = false; }
+};
+
+// ── BCH → PUSD/MUSD (Cauldron only) ──
+let swQuote = null;
+$('sQuote').onclick = async () => {
+  $('sErr').textContent = ''; $('sGo').classList.add('hidden'); $('sQuoteBox').classList.add('hidden');
+  try {
+    if (!me) await connect();
+    const sats = Math.round(Number($('sAmount').value.replace(',', '.')) * 1e8);
+    if (!(sats >= 20000)) throw new Error('Write an amount of at least 0.0002 BCH.');
+    $('sQuote').disabled = true;
+    const c = await (await load()).quote('buy', String(sats), T);
+    swQuote = { sats: String(sats), token: T };
+    $('sQuoteBox').innerHTML = '';
+    for (const [k, v] of [['You swap', bch(sats)], ['You receive about', usd(c.demand) + ' (' + c.pools + ' Cauldron pool' + (c.pools > 1 ? 's' : '') + ')'], ['Network fee', 'a few hundred sats']]) {
+      const r = document.createElement('div'); r.className = 'row'; r.innerHTML = '<span class="muted"></span><span></span>'; r.children[0].textContent = k; r.children[1].textContent = v; $('sQuoteBox').append(r);
+    }
+    $('sQuoteBox').classList.remove('hidden'); $('sGo').classList.remove('hidden');
+  } catch (e) { $('sErr').textContent = e.message; } finally { $('sQuote').disabled = false; }
+};
+$('sGo').onclick = async () => {
+  $('sErr').textContent = ''; $('sGo').disabled = true;
+  try {
+    const r = await (await load()).buyPusd({ sats: swQuote.sats, token: swQuote.token, prompt: 'Cobra: BCH → ' + swQuote.token, onQr: showQr });
+    hideQr(); $('sGo').classList.add('hidden');
+    $('sErr').innerHTML = '<span style="color:var(--accent)">✓ ' + usd(r.cents, swQuote.token) + ' on the way to your wallet.</span>';
+  } catch (e) { $('sErr').textContent = e.message; } finally { $('sGo').disabled = false; }
 };
 
 /** Follows a 1Click deposit until it settles; then(fin) when done. */
