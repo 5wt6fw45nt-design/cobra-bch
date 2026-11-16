@@ -17,6 +17,8 @@ import { BCH_WALLET_JS } from './bchwallet.gen.js';
 import { landingPage, blazeBanner } from './landing.js';
 import { createBridge, BridgeError } from './bridge.js';
 import { bridgePage } from './bridgepage.js';
+import { presentationPage } from './presentation.js';
+import { LOGO_PNG_B64 } from './logo.gen.js';
 import { BRIDGE_JS } from './bridge.gen.js';
 import { newPayToken } from './payments.js';
 import { isCashAddr } from './bch.js';
@@ -215,6 +217,8 @@ export default {
     if (url.pathname.startsWith('/pay/')) return handlePay(req, env, url, deps);
     if (url.pathname === '/demo') return handleDemo(env, url, { ...deps, ip: req.headers.get('cf-connecting-ip') || '' });
     if (url.pathname.startsWith('/bridge')) return handleBridge(req, env, url, deps);
+    if (url.pathname === '/presentation') return html(presentationPage());
+    if (url.pathname === '/logo.png') return new Response(Uint8Array.from(atob(LOGO_PNG_B64), (c) => c.charCodeAt(0)), { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' } });
     if (url.pathname === '/' || url.pathname === '') return html(landingPage({ presentation: env.PRESENTATION_URL, donate: env.DEMO_BCH_ADDRESS }));
     // WizardConnect + transaction builder for "Pay with my wallet" on Bitcoin Cash invoices (client/bch-wallet.js)
     if (url.pathname === '/bch-wallet.js') return new Response(BCH_WALLET_JS, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
