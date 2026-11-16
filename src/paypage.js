@@ -27,7 +27,7 @@ export function payPage({ token, invoice, options, lang, badge = null }) {
   return `<!doctype html>
 <html lang="${lang === 'es' ? 'es' : 'en'}">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><link rel="icon" href="/logo.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Cobra · ${lang === 'es' ? 'Pagar factura' : 'Pay invoice'}</title>

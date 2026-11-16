@@ -36,7 +36,7 @@ bridge   0.50 PUSD → 7 Cauldron pools → 0.00236462 BCH
     `<div class="center thanks"><h1>THANK YOU!</h1><p class="big">Try it now: <a href="${SITE}/demo">pay a $0.10 demo invoice</a> · <a href="${SITE}/bridge">open the bridge</a></p></div>`,
   ];
   return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><link rel="icon" href="/logo.png"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cobra · BCH BLAZE presentation</title>
 <style>
   * { box-sizing:border-box; } html,body { margin:0; height:100%; background:#000; color:#fff; font:20px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }

@@ -32,7 +32,7 @@ export function landingPage({ presentation, donate, bot = 'Cobrainvoicebot' }) {
   return `<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><link rel="icon" href="/logo.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cobra · voice-to-invoice, paid in Bitcoin Cash</title>
 <meta name="description" content="Tell a Telegram bot who to bill; your client pays in BCH or PUSD from any wallet over WizardConnect.">
@@ -64,7 +64,7 @@ export function landingPage({ presentation, donate, bot = 'Cobrainvoicebot' }) {
 ${blazeBanner({ presentation, donate })}
 <main>
   <section>
-    <div class="muted">🧾 Cobra · Telegram assistant for freelancers</div>
+    <div class="muted" style="display:flex;align-items:center;gap:10px"><img src="/logo.png" alt="Cobra" width="44" height="44" style="border-radius:11px"> Cobra · Telegram assistant for freelancers</div>
     <h1>Say who to bill. Get paid in Bitcoin Cash.</h1>
     <p class="lead">Send Cobra a voice note: “Bill Marta 350 euros for the logo.” It writes the invoice and gives you a payment link. Your client pays in <b>BCH</b> or in <b>PUSD</b> (ParyonUSD) from Paytaca, Cashonize or Zapit over <b>WizardConnect</b>, straight to your address. Cobra tells you the moment it lands.</p>
   </section>

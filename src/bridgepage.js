@@ -9,7 +9,7 @@ export function bridgePage({ stables, banner = '' }) {
   return `<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><link rel="icon" href="/logo.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cobra Bridge · PUSD ⇄ USDC</title>
 <meta name="description" content="Move dollars between Bitcoin Cash (PUSD) and USDC/USDT on 8 chains, signed in your own wallet.">
