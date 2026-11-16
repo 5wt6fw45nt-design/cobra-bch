@@ -169,7 +169,7 @@ $('oQuote').onclick = async () => {
     const q = await post('/bridge/quote', { direction: 'out', stable: $('oStable').value, amount: sats, to: $('oTo').value.trim(), refund: me });
     outQuote = { cents, sats, q, token: T };
     $('oQuoteBox').innerHTML = '';
-    for (const [k, v] of [['You send', usd(cents)], ['Cauldron swap', bch(sats) + ' (' + c.pools + ' pool' + (c.pools > 1 ? 's' : '') + ')'], ['You receive about', q.amountOut + ' ' + q.symbolOut + ' · ' + stable($('oStable').value).label.split(' · ')[1]], ['Time', '~' + Math.max(1, Math.round(q.timeEstimate / 60)) + ' min']]) {
+    for (const [k, v] of [['You send', usd(cents)], ['Cauldron swap', bch(sats) + ' (' + c.pools + ' pool' + (c.pools > 1 ? 's' : '') + ')'], ['You receive about', q.amountOut + ' ' + q.symbolOut + ' · ' + stable($('oStable').value).label.split(' · ')[1]], ['Time', 'one BCH block (~10 min, sometimes more) + ~' + Math.max(1, Math.round(q.timeEstimate / 60)) + ' min']]) {
       const r = document.createElement('div'); r.className = 'row'; r.innerHTML = '<span class="muted"></span><span></span>'; r.children[0].textContent = k; r.children[1].textContent = v; $('oQuoteBox').append(r);
     }
     $('oQuoteBox').classList.remove('hidden'); $('oGo').classList.remove('hidden');
@@ -180,6 +180,7 @@ $('oGo').onclick = async () => {
   try {
     await (await load()).sellPusd({ to: outQuote.q.depositAddress, cents: outQuote.cents, sats: outQuote.sats, token: outQuote.token, memo: MEMO, prompt: 'Cobra bridge: ' + usd(outQuote.cents, outQuote.token) + ' → ' + outQuote.q.symbolOut, onQr: showQr });
     hideQr(); step('os', 2); $('oGo').classList.add('hidden');
+    if (bal) { bal[outQuote.token.toLowerCase()] -= outQuote.cents; showBal(); }
     follow(outQuote.q.depositAddress, 'os', (s) => s === 'SUCCESS', $('oErr'));
   } catch (e) { $('oErr').textContent = e.message; } finally { $('oGo').disabled = false; }
 };
@@ -207,6 +208,7 @@ $('sGo').onclick = async () => {
   try {
     const r = await (await load()).buyPusd({ sats: swQuote.sats, token: swQuote.token, prompt: 'Cobra: BCH → ' + swQuote.token, onQr: showQr });
     hideQr(); $('sGo').classList.add('hidden');
+    if (bal) { bal[swQuote.token.toLowerCase()] += Number(r.cents); bal.sats -= Number(swQuote.sats); showBal(); }
     $('sErr').innerHTML = '<span style="color:var(--accent)">✓ ' + usd(r.cents, swQuote.token) + ' on the way to your wallet.</span>';
   } catch (e) { $('sErr').textContent = e.message; } finally { $('sGo').disabled = false; }
 };
