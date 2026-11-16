@@ -60,7 +60,9 @@ export function createBridge(intents) {
         dry,
         originAsset: out ? BCH_1CLICK : s.assetId, destinationAsset: out ? s.assetId : BCH_1CLICK, amount: units,
         recipient: out ? String(to).trim() : plainCashAddr(to), refundTo: out ? plainCashAddr(refund) : String(refund).trim(),
-        deadline: Date.now() + 30 * 60_000,
+        // BCH deposits count only once mined, and a BCH block can take well over 30 min: a short deadline gets the
+        // swap refunded as QUOTE_EXPIRED (happened on 16 Nov). Give BCH-side deposits 3 hours.
+        deadline: Date.now() + (out ? 180 : 60) * 60_000,
       });
       return {
         depositAddress: q.depositAddress || null, depositMemo: q.depositMemo || null, deadline: q.deadline,
