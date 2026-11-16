@@ -34,7 +34,7 @@ let mgr = null, relay = null;
 export async function connect(onQr) {
   if (mgr?.isWalletDiscovered()) return mgr;
   mgr?.destroy(); relay?.cleanup();
-  mgr = new DappConnectionManager('Cobra', `${location.origin}/favicon.ico`, { session: false });
+  mgr = new DappConnectionManager('Cobra', `${location.origin}/logo.png`, { session: false });
   relay = initiateDappRelay((p) => mgr.updateConnection(p.client, p.status));
   mgr.attachRelay(relay);
   onQr(relay.qrUri || relay.uri, relay.uri);
