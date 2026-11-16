@@ -82,6 +82,12 @@ ${blazeBanner({ presentation, donate })}
     <a class="cta" href="/bridge">Open the bridge</a>
   </section>
 
+  <section class="card">
+    <h2>Cobra on XO</h2>
+    <p class="muted">Cobra's invoice payment is also an XO template: the client pays from any XO wallet (such as blaze.xo.cash) and the freelancer can refund it later with a follow-up action. Paid and refunded on mainnet on 16 Nov 2026.</p>
+    <a class="ghost" style="margin-left:0" href="${REPO}/tree/main/xo" target="_blank" rel="noopener">Template, invitations and how to reproduce</a>
+  </section>
+
   <section class="steps">
     <div><b>1 · Talk</b>A voice note or a text in English or Spanish. Whisper and Llama (Workers AI) turn it into an invoice draft.</div>
     <div><b>2 · Share</b>One tap sends the client a payment link. EUR or USD, priced in BCH or PUSD at the moment they pay.</div>
