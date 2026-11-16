@@ -1012,11 +1012,14 @@ test('bridge page and endpoints are served, with the BLAZE banner', async () => 
   const env = { DB: s.d1, PUBLIC_URL: 'https://cobra.test', BOT_TOKEN: 'x', DEMO_BCH_ADDRESS: ZADDR };
   const deps = { intents: bridgeIntents(), api: s.api, bch: { tip: async () => 1 } };
   const page = await (await worker.fetch(new Request('https://cobra.test/bridge'), env, {}, deps)).text();
-  assert.match(page, /PUSD ⇄ USDC/);
+  assert.match(page, /PUSD & MUSD ⇄ USDC/);
+  assert.match(page, /data-t="MUSD">MUSD<small>Moria USD/, 'MUSD (Moria USD) can be picked as well as PUSD');
   assert.match(page, /BCH BLAZE 2026/);
   assert.match(page, /USDT · Tron/);
   const js = await worker.fetch(new Request('https://cobra.test/bridge.js'), env, {}, deps);
-  assert.ok((await js.text()).length > 500_000);
+  const bundle = await js.text();
+  assert.ok(bundle.length > 500_000);
+  assert.ok(bundle.includes('b38a33f750f84c5c169a6f23cb873e6e79605021585d4f3408789689ed87f366'), 'the bundle knows the MUSD category');
   const bad = await worker.fetch(new Request('https://cobra.test/bridge/quote', { method: 'POST', body: JSON.stringify({ direction: 'out', stable: 'USDC-base', amount: '100', to: 'x', refund: ZADDR }) }), env, {}, deps);
   assert.equal(bad.status, 400);
   assert.match((await bad.json()).detail, /destination address/);

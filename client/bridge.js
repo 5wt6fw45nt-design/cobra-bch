@@ -6,38 +6,45 @@ import { ExchangeLab } from '@cashlab/cauldron';
 import { SpendableCoinType, PayoutAmountRuleType, NATIVE_BCH_TOKEN_ID } from '@cashlab/common';
 
 // ── Stablecoin bridge (BCH BLAZE «Stablecoin Bridge» bounty) ──────────────────────────────────────────────
-// PUSD ⇄ BCH on Cauldron (the BCH DEX), in one transaction that the wallet signs over WizardConnect. Selling PUSD
-// can pay the BCH straight to another address (a NEAR Intents deposit address), so PUSD → USDC on any chain is a
+// PUSD or MUSD ⇄ BCH on Cauldron (the BCH DEX), in one transaction that the wallet signs over WizardConnect. Selling PUSD
+// can pay the BCH straight to another address (a NEAR Intents deposit address), so PUSD/MUSD → USDC on any chain is a
 // single signature on the BCH side. Pool inputs unlock by contract; only the wallet's own inputs need its signature.
 
 
 export const PUSD_CATEGORY = '2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544';
+export const MUSD_CATEGORY = 'b38a33f750f84c5c169a6f23cb873e6e79605021585d4f3408789689ed87f366';
+/** BCH dollar stablecoins the bridge handles (both CashTokens with 2 decimals, both traded on Cauldron). */
+export const TOKENS = { PUSD: { symbol: 'PUSD', name: 'ParyonUSD', category: PUSD_CATEGORY }, MUSD: { symbol: 'MUSD', name: 'Moria USD', category: MUSD_CATEGORY } };
+const tok = (t = 'PUSD') => { const x = TOKENS[t]; if (!x) throw new Error('Unknown stablecoin: ' + t); return x; };
 const INDEXER = 'https://indexer.riften.net/cauldron';
 const lab = new ExchangeLab();
 // cashlab sizes the fee with real-looking signatures; this throwaway key only fills those bytes and its
 // signatures are removed before the wallet signs. It never owns anything.
 const SIZE_ONLY_KEY = new Uint8Array(32).fill(7);
 
-let poolsCache = null;
-/** Active PUSD/BCH pools from the Cauldron indexer, as cashlab PoolV0 objects (cached 30 s). */
-export async function pools() {
-  if (poolsCache && Date.now() - poolsCache.at < 30_000) return poolsCache.list;
-  const r = await fetch(`${INDEXER}/pool/active?token=${PUSD_CATEGORY}`);
+const poolsCache = {};
+/** Active `token`/BCH pools from the Cauldron indexer, as cashlab PoolV0 objects (cached 30 s per token). */
+export async function pools(token = 'PUSD') {
+  const cat = tok(token).category;
+  const hit = poolsCache[cat];
+  if (hit && Date.now() - hit.at < 30_000) return hit.list;
+  const r = await fetch(`${INDEXER}/pool/active?token=${cat}`);
   if (!r.ok) throw new Error('Cauldron is not reachable right now.');
   const list = (await r.json()).active.map((p) => {
     const parameters = { withdraw_pubkey_hash: hexToBin(p.owner_pkh) };
-    return { version: '0', parameters, outpoint: { index: p.tx_pos, txhash: hexToBin(p.txid) }, output: { locking_bytecode: lab.generatePoolV0LockingBytecode(parameters), token: { amount: BigInt(p.tokens), token_id: PUSD_CATEGORY }, amount: BigInt(p.sats) } };
+    return { version: '0', parameters, outpoint: { index: p.tx_pos, txhash: hexToBin(p.txid) }, output: { locking_bytecode: lab.generatePoolV0LockingBytecode(parameters), token: { amount: BigInt(p.tokens), token_id: cat }, amount: BigInt(p.sats) } };
   });
-  poolsCache = { at: Date.now(), list };
+  poolsCache[cat] = { at: Date.now(), list };
   return list;
 }
 
-/** How many sats `cents` PUSD buy right now (sell side), or how many PUSD cents `sats` buy (buy side). */
-export async function quote(side, amount) {
-  const p = await pools();
+/** How many sats `cents` of the token buy right now (sell side), or how many token cents `sats` buy (buy side). */
+export async function quote(side, amount, token = 'PUSD') {
+  const cat = tok(token).category;
+  const p = await pools(token);
   const t = side === 'sell'
-    ? lab.constructTradeBestRateForTargetSupply(PUSD_CATEGORY, NATIVE_BCH_TOKEN_ID, BigInt(amount), p, 1n)
-    : lab.constructTradeBestRateForTargetSupply(NATIVE_BCH_TOKEN_ID, PUSD_CATEGORY, BigInt(amount), p, 1n);
+    ? lab.constructTradeBestRateForTargetSupply(cat, NATIVE_BCH_TOKEN_ID, BigInt(amount), p, 1n)
+    : lab.constructTradeBestRateForTargetSupply(NATIVE_BCH_TOKEN_ID, cat, BigInt(amount), p, 1n);
   return { supply: String(t.summary.supply), demand: String(t.summary.demand), fee: String(t.summary.trade_fee), pools: t.entries.length };
 }
 
@@ -76,34 +83,37 @@ async function walletCoins(onQr, onStep) {
   try { return await scan(c); } finally { c.close(); }
 }
 
-/** The connected wallet's address and balances: { address, sats, pusd } (pusd in cents). */
+const cents = (coins, cat) => coins.filter((x) => x.u.token_data?.category === cat && !x.u.token_data.nft).reduce((s, x) => s + Number(x.u.token_data.amount), 0);
+/** The connected wallet's address and balances: { address, sats, pusd, musd } (stablecoins in cents). */
 export async function balances(onQr) {
   const { coins } = await walletCoins(onQr);
   return {
     address: addressAt(RECEIVE, 0),
     sats: coins.filter((x) => !x.u.token_data).reduce((s, x) => s + x.u.value, 0),
-    pusd: coins.filter((x) => x.u.token_data?.category === PUSD_CATEGORY && !x.u.token_data.nft).reduce((s, x) => s + Number(x.u.token_data.amount), 0),
+    pusd: cents(coins, PUSD_CATEGORY),
+    musd: cents(coins, MUSD_CATEGORY),
   };
 }
 
 /**
- * Sells `cents` PUSD on Cauldron and pays the resulting BCH (minus the network fee) to `to`, all in one
- * transaction: { to, cents, memo, prompt, onQr, onStep } → { signed, sats } (sats = BCH delivered to `to`).
+ * Sells `cents` of `token` (PUSD or MUSD) on Cauldron and pays the resulting BCH (minus the network fee) to `to`,
+ * all in one transaction: { to, cents, token, memo, prompt, onQr, onStep } → { signed, sats } (sats = BCH delivered to `to`).
  */
-export async function sellPusd({ to, cents, sats: exact, memo, prompt, onQr, onStep }) {
+export async function sellPusd({ to, cents, sats: exact, token = 'PUSD', memo, prompt, onQr, onStep }) {
+  const { category: CAT, symbol } = tok(token);
   const { coins, change } = await walletCoins(onQr, onStep);
   const want = BigInt(cents);
-  const tokenCoins = coins.filter((x) => x.u.token_data?.category === PUSD_CATEGORY && !x.u.token_data.nft).sort((a, b) => (BigInt(b.u.token_data.amount) > BigInt(a.u.token_data.amount) ? 1 : -1));
+  const tokenCoins = coins.filter((x) => x.u.token_data?.category === CAT && !x.u.token_data.nft).sort((a, b) => (BigInt(b.u.token_data.amount) > BigInt(a.u.token_data.amount) ? 1 : -1));
   const picked = [];
   let have = 0n;
   for (const x of tokenCoins) { if (have >= want) break; picked.push(x); have += BigInt(x.u.token_data.amount); }
-  if (have < want) throw new Error(`Not enough PUSD in this wallet: needs ${(Number(want) / 100).toFixed(2)}.`);
+  if (have < want) throw new Error(`Not enough ${symbol} in this wallet: needs ${(Number(want) / 100).toFixed(2)}.`);
   const fuel = coins.filter((x) => !x.u.token_data).sort((a, b) => b.u.value - a.u.value)[0];
   if (fuel) picked.push(fuel); // a little BCH for the fee and the token change output
-  const trade = lab.constructTradeBestRateForTargetSupply(PUSD_CATEGORY, NATIVE_BCH_TOKEN_ID, want, await pools(), 1n);
+  const trade = lab.constructTradeBestRateForTargetSupply(CAT, NATIVE_BCH_TOKEN_ID, want, await pools(token), 1n);
   // `exact`: the amount a NEAR Intents quote expects; otherwise leave room for the network fee (the rest returns as change)
   const sats = exact ? BigInt(exact) : trade.summary.demand - 3000n;
-  if (sats > trade.summary.demand - 1500n) throw new Error('The PUSD price moved. Get a new quote.');
+  if (sats > trade.summary.demand - 1500n) throw new Error(`The ${symbol} price moved. Get a new quote.`);
   const tx = lab.createTradeTx(trade.entries, picked.map(toCoin), [
     { type: PayoutAmountRuleType.FIXED, locking_bytecode: lock(to), amount: sats },
     { type: PayoutAmountRuleType.CHANGE, locking_bytecode: lock(change.address) },
@@ -112,23 +122,26 @@ export async function sellPusd({ to, cents, sats: exact, memo, prompt, onQr, onS
   return { signed: await signTrade(tx, picked, prompt), sats: String(sats) };
 }
 
-/** Buys PUSD with `sats` BCH on Cauldron, paid to the wallet's own address: { sats, prompt, onQr, onStep } → { signed, cents }. */
-export async function buyPusd({ sats, prompt, onQr, onStep }) {
+/** Buys `token` (PUSD or MUSD) with `sats` BCH on Cauldron, paid to the wallet's own address: { sats, token, prompt, onQr, onStep } → { signed, cents }. */
+export async function buyPusd({ sats, token = 'PUSD', prompt, onQr, onStep }) {
+  const CAT = tok(token).category;
   const { coins, change } = await walletCoins(onQr, onStep);
   const spend = BigInt(sats);
   const picked = [];
   let have = 0n;
   for (const x of coins.filter((x) => !x.u.token_data).sort((a, b) => b.u.value - a.u.value)) { if (have >= spend + 5000n) break; picked.push(x); have += BigInt(x.u.value); }
   if (have < spend + 3000n) throw new Error(`Not enough BCH in this wallet: needs ${(Number(spend + 3000n) / 1e8).toFixed(8)} BCH.`);
-  const trade = lab.constructTradeBestRateForTargetSupply(NATIVE_BCH_TOKEN_ID, PUSD_CATEGORY, spend, await pools(), 1n);
+  const trade = lab.constructTradeBestRateForTargetSupply(NATIVE_BCH_TOKEN_ID, CAT, spend, await pools(token), 1n);
   const me = addressAt(RECEIVE, 0);
   const tx = lab.createTradeTx(trade.entries, picked.map(toCoin), [
-    { type: PayoutAmountRuleType.FIXED, locking_bytecode: lock(me), amount: -1n, token: { amount: trade.summary.demand, token_id: PUSD_CATEGORY } },
+    { type: PayoutAmountRuleType.FIXED, locking_bytecode: lock(me), amount: -1n, token: { amount: trade.summary.demand, token_id: CAT } },
     { type: PayoutAmountRuleType.CHANGE, locking_bytecode: lock(change.address) },
   ], null, 1n);
   onStep?.('sign');
   return { signed: await signTrade(tx, picked, prompt), cents: String(trade.summary.demand) };
 }
+
+export { sellPusd as sell, buyPusd as buy };
 
 /** Pairs (if needed) and returns the wallet's first receive address, e.g. as the refund address of a bridge. */
 export async function address(onQr) { await connect(onQr); return addressAt(RECEIVE, 0); }

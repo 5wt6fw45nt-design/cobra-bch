@@ -1,4 +1,4 @@
-// /bridge: PUSD ⇄ USDC/USDT on 8 chains. PUSD ⇄ BCH runs on Cauldron, signed in the user's wallet over WizardConnect;
+// /bridge: PUSD or MUSD ⇄ USDC/USDT on 8 chains. PUSD/MUSD ⇄ BCH runs on Cauldron, signed in the user's wallet over WizardConnect;
 // BCH ⇄ stablecoins runs on NEAR Intents. Selling PUSD pays the BCH straight to the 1Click deposit address, so the BCH
 // side is a single signature. Cobra never holds funds or keys.
 
@@ -11,8 +11,8 @@ export function bridgePage({ stables, banner = '' }) {
 <head>
 <meta charset="utf-8"><link rel="icon" href="/logo.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Cobra Bridge · PUSD ⇄ USDC</title>
-<meta name="description" content="Move dollars between Bitcoin Cash (PUSD) and USDC/USDT on 8 chains, signed in your own wallet.">
+<title>Cobra Bridge · PUSD & MUSD ⇄ USDC</title>
+<meta name="description" content="Move dollars between Bitcoin Cash (PUSD or MUSD) and USDC/USDT on 8 chains, signed in your own wallet.">
 <script src="${QR}"></script>
 <style>
   :root { --bg:#f4f6fa; --card:#fff; --ink:#0f1b2d; --soft:#5d6b82; --line:#dfe5ee; --accent:#0ac18e; --accent-ink:#04261b; --bad:#c8352b; --warn:#b26a00; }
@@ -23,9 +23,11 @@ export function bridgePage({ stables, banner = '' }) {
   h1 { font-size:30px; margin:4px 0; letter-spacing:-.4px; }
   .muted { color:var(--soft); font-size:14px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; }
-  .tabs { display:grid; grid-template-columns:1fr 1fr; gap:6px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:5px; }
-  .tabs button { margin:0; background:transparent; color:var(--ink); font-weight:700; }
-  .tabs button.on { background:var(--accent); color:var(--accent-ink); }
+  .tabs, .coin { display:grid; grid-template-columns:1fr 1fr; gap:6px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:5px; }
+  .tabs button, .coin button { margin:0; background:transparent; color:var(--ink); font-weight:700; }
+  .tabs button.on, .coin button.on { background:var(--accent); color:var(--accent-ink); }
+  .coin { background:transparent; border:0; padding:0; } .coin button { border:1px solid var(--line); font-weight:600; padding:10px; }
+  .coin small { display:block; font-weight:400; font-size:12px; opacity:.8; }
   label { display:block; font-weight:600; margin:12px 0 6px; font-size:14px; }
   input, select { width:100%; font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:11px 12px; }
   button { width:100%; font:inherit; font-weight:700; border:0; border-radius:12px; padding:13px; margin-top:14px; background:var(--accent); color:var(--accent-ink); cursor:pointer; }
@@ -52,11 +54,13 @@ ${banner}
 <main>
   <section>
     <div class="muted">🧾 Cobra · stablecoin bridge</div>
-    <h1>PUSD ⇄ USDC, from your own wallet</h1>
-    <p class="muted">Bitcoin Cash dollars (PUSD) to USDC or USDT on 8 chains and back. The PUSD side is swapped on Cauldron and signed in Paytaca, Cashonize or Zapit over WizardConnect; the cross-chain side runs on NEAR Intents. No account, no custody.</p>
+    <h1>BCH dollars ⇄ USDC, from your own wallet</h1>
+    <p class="muted">Bitcoin Cash dollars (PUSD or MUSD) to USDC or USDT on 8 chains and back. The BCH side is swapped on Cauldron and signed in Paytaca, Cashonize or Zapit over WizardConnect; the cross-chain side runs on NEAR Intents. No account, no custody.</p>
   </section>
 
-  <div class="tabs"><button id="tOut" class="on">PUSD → USDC</button><button id="tIn">USDC → PUSD</button></div>
+  <div class="coin" role="radiogroup" aria-label="Bitcoin Cash dollar"><button id="cPUSD" class="on" data-t="PUSD">PUSD<small>ParyonUSD</small></button><button id="cMUSD" data-t="MUSD">MUSD<small>Moria USD</small></button></div>
+
+  <div class="tabs"><button id="tOut" class="on"><span class="T">PUSD</span> → USDC</button><button id="tIn">USDC → <span class="T">PUSD</span></button></div>
 
   <section class="card">
     <button id="connect">Connect my BCH wallet (WizardConnect)</button>
@@ -69,7 +73,7 @@ ${banner}
   </section>
 
   <section class="card" id="out">
-    <label for="oAmount">PUSD to send</label>
+    <label for="oAmount"><span class="T">PUSD</span> to send</label>
     <input id="oAmount" inputmode="decimal" placeholder="1.00">
     <label for="oStable">Receive</label>
     <select id="oStable"></select>
@@ -78,7 +82,7 @@ ${banner}
     <button id="oQuote" class="ghost">Get a quote</button>
     <div class="hidden" id="oQuoteBox" style="margin-top:12px"></div>
     <button id="oGo" class="hidden">Bridge now · one signature</button>
-    <div class="steps hidden" id="oSteps"><div id="os1">Sign the swap in your wallet (PUSD → BCH, sent to NEAR Intents)</div><div id="os2">BCH reaches NEAR Intents</div><div id="os3">Stablecoin delivered on the other chain</div></div>
+    <div class="steps hidden" id="oSteps"><div id="os1">Sign the swap in your wallet (<span class="T">PUSD</span> → BCH, sent to NEAR Intents)</div><div id="os2">BCH reaches NEAR Intents</div><div id="os3">Stablecoin delivered on the other chain</div></div>
     <div class="err" id="oErr"></div>
   </section>
 
@@ -97,7 +101,7 @@ ${banner}
       <div class="addr" id="iAddr"></div>
       <div class="muted" id="iGet" style="margin-top:8px"></div>
     </div>
-    <div class="steps hidden" id="iSteps"><div id="is1">Your stablecoin reaches NEAR Intents</div><div id="is2">BCH arrives in your wallet</div><div id="is3">Swap the BCH to PUSD (sign in your wallet)</div></div>
+    <div class="steps hidden" id="iSteps"><div id="is1">Your stablecoin reaches NEAR Intents</div><div id="is2">BCH arrives in your wallet</div><div id="is3">Swap the BCH to <span class="T">PUSD</span> (sign in your wallet)</div></div>
     <button id="iSwap" class="hidden"></button>
     <div class="err" id="iErr"></div>
   </section>
@@ -108,14 +112,18 @@ ${banner}
 const STABLES = ${embed(stables)};
 const $ = (id) => document.getElementById(id);
 const MEMO = '6a05636f6272610662726964676' + '5'; // OP_RETURN "cobra" "bridge"
-let lib = null, me = null;
+let lib = null, me = null, bal = null, T = 'PUSD';
 const load = async () => (lib ||= await import('/bridge.js'));
 for (const sel of ['oStable', 'iStable']) for (const s of STABLES) { const o = document.createElement('option'); o.value = s.id; o.textContent = s.label; $(sel).append(o); }
 const stable = (id) => STABLES.find((s) => s.id === id);
 const showQr = (qr, uri) => { $('qr').innerHTML = ''; if (window.QRCode) new QRCode($('qr'), { text: qr, width: 230, height: 230, correctLevel: QRCode.CorrectLevel.L }); $('qrHint').classList.remove('hidden'); $('qrLink').href = uri; };
 const hideQr = () => { $('qr').innerHTML = ''; $('qrHint').classList.add('hidden'); };
 const bch = (sats) => (Number(sats) / 1e8).toFixed(8) + ' BCH';
-const usd = (cents) => (Number(cents) / 100).toFixed(2) + ' PUSD';
+const usd = (cents, t = T) => (Number(cents) / 100).toFixed(2) + ' ' + t;
+const showBal = () => { if (bal) $('wBal').textContent = usd(bal.pusd, 'PUSD') + ' · ' + usd(bal.musd, 'MUSD') + ' · ' + bch(bal.sats); };
+const pick = (t) => { T = t; for (const b of document.querySelectorAll('.coin button')) b.className = b.dataset.t === t ? 'on' : ''; for (const e of document.querySelectorAll('.T')) e.textContent = t; };
+for (const b of document.querySelectorAll('.coin button')) b.onclick = () => { pick(b.dataset.t); $('oQuoteBox').classList.add('hidden'); $('oGo').classList.add('hidden'); };
+if (new URLSearchParams(location.search).get('token') === 'MUSD') pick('MUSD');
 const step = (prefix, n) => { for (let i = 1; i <= 3; i++) $(prefix + i).className = i < n ? 'done' : i === n ? 'now' : ''; };
 const post = async (url, body) => { const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.detail || j.error || 'That did not work'); return j; };
 
@@ -127,10 +135,10 @@ async function connect() {
   try {
     const b = await (await load()).balances(showQr);
     hideQr();
-    me = b.address;
+    me = b.address; bal = b;
     $('wallet').classList.remove('hidden'); $('connect').classList.add('hidden');
     $('wAddr').textContent = me;
-    $('wBal').textContent = usd(b.pusd) + ' · ' + bch(b.sats);
+    showBal();
     return me;
   } finally { $('connect').disabled = false; }
 }
@@ -143,12 +151,12 @@ $('oQuote').onclick = async () => {
   try {
     if (!me) await connect();
     const cents = Math.round(Number($('oAmount').value.replace(',', '.')) * 100);
-    if (!(cents >= 10)) throw new Error('Write an amount of at least 0.10 PUSD.');
+    if (!(cents >= 10)) throw new Error('Write an amount of at least 0.10 ' + T + '.');
     $('oQuote').disabled = true;
-    const c = await (await load()).quote('sell', cents);
+    const c = await (await load()).quote('sell', cents, T);
     const sats = String(BigInt(c.demand) - 3000n);
     const q = await post('/bridge/quote', { direction: 'out', stable: $('oStable').value, amount: sats, to: $('oTo').value.trim(), refund: me });
-    outQuote = { cents, sats, q };
+    outQuote = { cents, sats, q, token: T };
     $('oQuoteBox').innerHTML = '';
     for (const [k, v] of [['You send', usd(cents)], ['Cauldron swap', bch(sats) + ' (' + c.pools + ' pool' + (c.pools > 1 ? 's' : '') + ')'], ['You receive about', q.amountOut + ' ' + q.symbolOut + ' · ' + stable($('oStable').value).label.split(' · ')[1]], ['Time', '~' + Math.max(1, Math.round(q.timeEstimate / 60)) + ' min']]) {
       const r = document.createElement('div'); r.className = 'row'; r.innerHTML = '<span class="muted"></span><span></span>'; r.children[0].textContent = k; r.children[1].textContent = v; $('oQuoteBox').append(r);
@@ -159,7 +167,7 @@ $('oQuote').onclick = async () => {
 $('oGo').onclick = async () => {
   $('oErr').textContent = ''; $('oGo').disabled = true; $('oSteps').classList.remove('hidden'); step('os', 1);
   try {
-    await (await load()).sellPusd({ to: outQuote.q.depositAddress, cents: outQuote.cents, sats: outQuote.sats, memo: MEMO, prompt: 'Cobra bridge: ' + usd(outQuote.cents) + ' → ' + outQuote.q.symbolOut, onQr: showQr });
+    await (await load()).sellPusd({ to: outQuote.q.depositAddress, cents: outQuote.cents, sats: outQuote.sats, token: outQuote.token, memo: MEMO, prompt: 'Cobra bridge: ' + usd(outQuote.cents, outQuote.token) + ' → ' + outQuote.q.symbolOut, onQr: showQr });
     hideQr(); step('os', 2); $('oGo').classList.add('hidden');
     follow(outQuote.q.depositAddress, 'os', (s) => s === 'SUCCESS', $('oErr'));
   } catch (e) { $('oErr').textContent = e.message; } finally { $('oGo').disabled = false; }
@@ -194,20 +202,21 @@ $('iQuote').onclick = async () => {
     const q = await post('/bridge/quote', { direction: 'in', stable: s.id, amount: units, to: me, refund: $('iRefund').value.trim() });
     $('iSend').textContent = q.amountIn + ' ' + s.label;
     $('iAddr').textContent = q.depositAddress + (q.depositMemo ? '  memo: ' + q.depositMemo : '');
-    $('iGet').textContent = 'You get about ' + q.amountOut + ' BCH in your wallet, then swap it to PUSD here with one signature.';
+    const want = T;
+    $('iGet').textContent = 'You get about ' + q.amountOut + ' BCH in your wallet, then swap it to ' + want + ' here with one signature.';
     $('qr').innerHTML = ''; if (window.QRCode) new QRCode($('qr'), { text: q.depositAddress, width: 200, height: 200 });
     $('iDeposit').classList.remove('hidden'); $('iSteps').classList.remove('hidden'); step('is', 1); $('iQuote').classList.add('hidden');
     follow(q.depositAddress, 'is', (st) => st === 'SUCCESS', $('iErr'), async (st) => {
       $('qr').innerHTML = '';
       const sats = BigInt(q.amountOutUnits) - 3000n;
-      const c = await (await load()).quote('buy', String(sats));
-      $('iSwap').textContent = 'Swap ' + bch(sats) + ' to about ' + usd(c.demand);
+      const c = await (await load()).quote('buy', String(sats), want);
+      $('iSwap').textContent = 'Swap ' + bch(sats) + ' to about ' + usd(c.demand, want);
       $('iSwap').classList.remove('hidden');
       $('iSwap').onclick = async () => {
         $('iSwap').disabled = true; $('iErr').textContent = '';
         try {
-          const r = await (await load()).buyPusd({ sats: String(sats), prompt: 'Cobra bridge: BCH → PUSD', onQr: showQr });
-          hideQr(); step('is', 4); $('iSwap').classList.add('hidden'); $('is3').append(' · ' + usd(r.cents) + ' received');
+          const r = await (await load()).buyPusd({ sats: String(sats), token: want, prompt: 'Cobra bridge: BCH → ' + want, onQr: showQr });
+          hideQr(); step('is', 4); $('iSwap').classList.add('hidden'); $('is3').append(' · ' + usd(r.cents, want) + ' received');
         } catch (e) { $('iErr').textContent = e.message; } finally { $('iSwap').disabled = false; }
       };
     });
