@@ -9,6 +9,7 @@ In Cobra a freelancer bills a client from Telegram and the client pays straight 
 | Template | [`template/cobra-invoice.json`](template/cobra-invoice.json) (source: [`template/cobra-invoice.mjs`](template/cobra-invoice.mjs)) |
 | CLI (freelancer side, XO engine in Node) | [`cobra-xo.mjs`](cobra-xo.mjs) |
 | Mainnet invitation, paid from blaze.xo.cash | [`invitations/mainnet/invoice-paid-INV-0001.json`](invitations/mainnet/invoice-paid-INV-0001.json) |
+| Feedback on developing with XO | [`FEEDBACK.md`](FEEDBACK.md) |
 | Mainnet follow-up (refund) | [`invitations/mainnet/refund-INV-0001.json`](invitations/mainnet/refund-INV-0001.json) |
 
 ## The template
